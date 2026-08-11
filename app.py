@@ -1,8 +1,8 @@
 """
 Workforce Intelligence Hub — PDO (synthetic data)
-Corporate PowerBI/PowerApps style. Green PDO theme.
+Corporate PowerBI/PowerApps style, green PDO theme.
 Pages: Executive Summary | Talent Profile | Dream Team | Training & Upskilling
-Phase 1: CSV-powered. ALL DATA SYNTHETIC.
+ALL DATA SYNTHETIC.
 """
 import os, json, re
 import numpy as np
@@ -17,174 +17,141 @@ st.set_page_config(page_title="Workforce Intelligence Hub",
 DATA_FILE = "pdo_talent_profiles.csv"
 MODEL = "claude-sonnet-4-5-20250929"
 
-# ---------- Theme palette (PDO green) ----------
-GREEN      = "#00843D"
-GREEN_DARK = "#005A2B"
-GREEN_DEEP = "#0A3D2C"
-LIME       = "#7AC143"
-GOLD       = "#F2A900"
-RED        = "#E24A33"
-SLATE      = "#5D6D7E"
-GREEN_SCHEME = [ "#0A3D2C","#005A2B","#00843D","#4CAF50","#7AC143","#B4E197"]
+GREEN="#00843D"; GREEN_DARK="#005A2B"; GREEN_DEEP="#0A3D2C"
+LIME="#7AC143"; GOLD="#F2A900"; RED="#E24A33"; SLATE="#5D6D7E"
+GREEN_SCHEME=["#0A3D2C","#005A2B","#00843D","#4CAF50","#7AC143","#B4E197"]
+
+# ---- HTML helper: strip indentation so Streamlit never shows raw <div> ----
+def H(s): return "\n".join(l.strip() for l in s.strip().split("\n"))
+def html(s): st.markdown(H(s), unsafe_allow_html=True)
 
 # =========================================================
-# GLOBAL CSS — corporate look
+# CSS
 # =========================================================
-st.markdown(f"""
+html(f"""
 <style>
 #MainMenu, header[data-testid="stHeader"], footer {{visibility:hidden;}}
 .stApp {{ background:#EDF2EE; }}
-.block-container {{ padding-top:0.5rem; padding-bottom:2rem; max-width:1500px; }}
-
-/* ---- Top header banner ---- */
-.wih-header {{
-  background:linear-gradient(100deg,{GREEN_DEEP} 0%,{GREEN_DARK} 45%,{GREEN} 100%);
-  border-radius:16px; padding:18px 26px; margin-bottom:18px;
-  display:flex; align-items:center; gap:18px;
-  box-shadow:0 6px 22px rgba(0,90,43,.28);
-}}
-.wih-title {{ color:#fff; font-size:2.05rem; font-weight:800; letter-spacing:.3px; margin:0; }}
-.wih-sub {{ color:#CDEBD6; font-size:.95rem; margin-top:2px; }}
-.wih-badge {{ margin-left:auto; background:rgba(255,255,255,.14); color:#fff;
-  padding:8px 16px; border-radius:30px; font-size:.85rem; font-weight:600;
-  border:1px solid rgba(255,255,255,.25);}}
-
-/* ---- KPI cards ---- */
-.kpi {{ background:#fff; border-radius:14px; padding:16px 18px; height:118px;
-  box-shadow:0 3px 12px rgba(16,40,30,.08); border-top:4px solid {GREEN};
-  display:flex; flex-direction:column; justify-content:center; }}
-.kpi .lbl {{ color:{SLATE}; font-size:.82rem; font-weight:600; text-transform:uppercase; letter-spacing:.4px;}}
-.kpi .val {{ color:{GREEN_DEEP}; font-size:2.0rem; font-weight:800; line-height:1.1; }}
-.kpi .sub {{ color:#8A97A6; font-size:.78rem; }}
-.kpi.alt {{ border-top-color:{GOLD}; }}
-.kpi.alt2 {{ border-top-color:{LIME}; }}
-.kpi.alt3 {{ border-top-color:{SLATE}; }}
-
-/* ---- Section titles ---- */
-.sec {{ font-size:1.25rem; font-weight:800; color:{GREEN_DEEP}; margin:8px 0 4px 0;
-  border-left:5px solid {GREEN}; padding-left:12px; }}
+.block-container {{ padding-top:0.6rem; padding-bottom:2rem; max-width:1500px; }}
+.wih-header {{ background:linear-gradient(100deg,{GREEN_DEEP} 0%,{GREEN_DARK} 45%,{GREEN} 100%);
+ border-radius:16px; padding:16px 26px; margin-bottom:16px; display:flex; align-items:center;
+ gap:16px; box-shadow:0 6px 22px rgba(0,90,43,.28); }}
+.wih-title {{ color:#fff; font-size:2rem; font-weight:800; margin:0; }}
+.wih-sub {{ color:#CDEBD6; font-size:.92rem; margin-top:2px; }}
+.wih-badge {{ margin-left:auto; background:rgba(255,255,255,.14); color:#fff; padding:8px 16px;
+ border-radius:30px; font-size:.82rem; font-weight:600; border:1px solid rgba(255,255,255,.25);}}
+.kpi {{ background:#fff; border-radius:14px; padding:14px 16px; min-height:112px;
+ box-shadow:0 3px 12px rgba(16,40,30,.08); border-top:4px solid {GREEN}; }}
+.kpi .lbl {{ color:{SLATE}; font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.4px;}}
+.kpi .val {{ color:{GREEN_DEEP}; font-size:1.75rem; font-weight:800; line-height:1.15; margin-top:4px;}}
+.kpi .sub {{ color:#8A97A6; font-size:.76rem; }}
+.kpi.alt {{ border-top-color:{GOLD}; }} .kpi.alt2 {{ border-top-color:{LIME}; }} .kpi.alt3 {{ border-top-color:{SLATE}; }}
+.sec {{ font-size:1.2rem; font-weight:800; color:{GREEN_DEEP}; margin:10px 0 6px 0;
+ border-left:5px solid {GREEN}; padding-left:12px; }}
 .card {{ background:#fff; border-radius:14px; padding:16px 18px; margin-bottom:12px;
-  box-shadow:0 3px 12px rgba(16,40,30,.07); }}
-.pill {{ display:inline-block; padding:4px 12px; border-radius:20px; font-size:.8rem;
-  font-weight:600; margin:3px 4px 3px 0; }}
-.pill.g {{ background:#E3F3E8; color:{GREEN_DARK}; }}
-.pill.y {{ background:#FDF0D5; color:#9A6B00; }}
-.pill.r {{ background:#FBE3DE; color:#A93226; }}
-.rowitem {{ background:#fff; border-radius:12px; padding:12px 16px; margin-bottom:8px;
-  box-shadow:0 2px 8px rgba(16,40,30,.06); border-left:4px solid {GREEN}; }}
-
-/* ---- Sidebar as nav ---- */
-section[data-testid="stSidebar"] {{
-  background:linear-gradient(180deg,{GREEN_DEEP} 0%,{GREEN_DARK} 100%);
-  min-width:290px !important;
-}}
+ box-shadow:0 3px 12px rgba(16,40,30,.07); }}
+.pill {{ display:inline-block; padding:3px 11px; border-radius:20px; font-size:.76rem; font-weight:700; margin:2px 3px;}}
+.pill.g {{ background:#E3F3E8; color:{GREEN_DARK}; }} .pill.y {{ background:#FDF0D5; color:#9A6B00; }}
+.pill.r {{ background:#FBE3DE; color:#A93226; }} .pill.s {{ background:#EBEFF3; color:{SLATE}; }}
+.rowitem {{ background:#fff; border-radius:12px; padding:12px 15px; margin-bottom:8px;
+ box-shadow:0 2px 8px rgba(16,40,30,.06); border-left:4px solid {GREEN}; }}
+.bar {{ background:#E6ECE8; border-radius:6px; height:8px; margin-top:6px; }}
+.bar > div {{ height:8px; border-radius:6px; }}
+section[data-testid="stSidebar"] {{ background:linear-gradient(180deg,{GREEN_DEEP},{GREEN_DARK}); min-width:290px !important; }}
 section[data-testid="stSidebar"] * {{ color:#EAF6EE; }}
-section[data-testid="stSidebar"] .stRadio > label {{ display:none; }}
-section[data-testid="stSidebar"] div[role="radiogroup"] label {{
-  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10);
-  border-radius:12px; padding:14px 16px; margin-bottom:10px; width:100%;
-  font-size:1.05rem !important; font-weight:600; cursor:pointer;
-  transition:.15s; }}
-section[data-testid="stSidebar"] div[role="radiogroup"] label:hover {{
-  background:rgba(255,255,255,.16); transform:translateX(3px); }}
-section[data-testid="stSidebar"] div[role="radiogroup"] input:checked + div {{ }}
-section[data-testid="stSidebar"] div[role="radiogroup"] label[data-checked="true"] {{
-  background:#fff; }}
-/* selected state via has() (modern browsers) */
-section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {{
-  background:#ffffff; border-color:#fff; }}
-section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) p {{
-  color:{GREEN_DARK} !important; font-weight:800; }}
+section[data-testid="stSidebar"] div[role="radiogroup"] label {{ background:rgba(255,255,255,.06);
+ border:1px solid rgba(255,255,255,.10); border-radius:12px; padding:14px 16px; margin-bottom:10px;
+ width:100%; font-weight:600; cursor:pointer; transition:.15s;}}
+section[data-testid="stSidebar"] div[role="radiogroup"] label:hover {{ background:rgba(255,255,255,.16); transform:translateX(3px);}}
+section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {{ background:#fff; border-color:#fff;}}
+section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) p {{ color:{GREEN_DARK} !important; font-weight:800;}}
 section[data-testid="stSidebar"] div[role="radiogroup"] label p {{ font-size:1.05rem !important; }}
-.sb-brand {{ text-align:center; padding:6px 0 14px 0; border-bottom:1px solid rgba(255,255,255,.15);
-  margin-bottom:16px; }}
-.sb-brand h3 {{ color:#fff; margin:6px 0 0 0; font-size:1.15rem; font-weight:800;}}
-.sb-brand span {{ color:#BFE6CC; font-size:.78rem; }}
-
-/* dataframe rounding */
-[data-testid="stDataFrame"] {{ border-radius:12px; overflow:hidden; }}
+.sb-brand {{ text-align:center; padding:4px 0 14px 0; border-bottom:1px solid rgba(255,255,255,.15); margin-bottom:16px;}}
+.sb-brand h3 {{ color:#fff; margin:6px 0 0 0; font-size:1.12rem; font-weight:800;}}
+.sb-brand span {{ color:#BFE6CC; font-size:.76rem; }}
 div[data-testid="stMetric"] {{ background:#fff; border-radius:12px; padding:12px 14px;
-  box-shadow:0 3px 12px rgba(16,40,30,.07); border-top:4px solid {GREEN}; }}
-.stButton>button {{ background:{GREEN}; color:#fff; border:none; border-radius:10px;
-  padding:10px 20px; font-weight:700; }}
+ box-shadow:0 3px 12px rgba(16,40,30,.07); border-top:4px solid {GREEN};}}
+.stButton>button {{ background:{GREEN}; color:#fff; border:none; border-radius:10px; padding:11px 22px; font-weight:700;}}
 .stButton>button:hover {{ background:{GREEN_DARK}; color:#fff; }}
+/* bigger search inputs */
+.stTextArea textarea {{ font-size:1.05rem; border:2px solid {GREEN}; border-radius:12px;
+ background:#F8FFFB; min-height:90px; }}
+.stTextArea textarea:focus {{ border-color:{LIME}; box-shadow:0 0 0 3px rgba(122,193,67,.25);}}
+/* team structure */
+.team-lead {{ background:linear-gradient(135deg,{GREEN},{GREEN_DARK}); color:#fff; border-radius:16px;
+ padding:16px 22px; text-align:center; width:300px; margin:0 auto 6px auto; box-shadow:0 6px 18px rgba(0,90,43,.3);}}
+.team-lead .n {{ font-size:1.15rem; font-weight:800; }}
+.team-lead .r {{ font-size:.82rem; color:#CDEBD6; }}
+.connector {{ width:2px; height:22px; background:{GREEN}; margin:0 auto; opacity:.5;}}
+.member {{ background:#fff; border-radius:12px; padding:11px 13px; box-shadow:0 2px 8px rgba(16,40,30,.08);
+ border-top:3px solid {LIME}; height:100%;}}
+.member .n {{ font-weight:800; color:{GREEN_DEEP}; font-size:.95rem;}}
+.member .t {{ color:{SLATE}; font-size:.76rem; }}
+.member .m {{ font-size:.76rem; margin-top:4px;}}
+.gcap {{ text-align:center; color:{SLATE}; font-size:.82rem; font-weight:700; margin-top:-8px;}}
 </style>
-""", unsafe_allow_html=True)
+""")
 
-LOGO_SVG = f"""
-<svg width="54" height="54" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect x="2" y="2" width="60" height="60" rx="16" fill="white" fill-opacity="0.12"
- stroke="white" stroke-opacity="0.5"/>
-<circle cx="32" cy="22" r="7" fill="{LIME}"/>
-<circle cx="19" cy="40" r="6" fill="#fff"/>
-<circle cx="45" cy="40" r="6" fill="#fff"/>
-<path d="M32 29c-6 0-9 6-9 6M32 29c6 0 9 6 9 6M25 44h14" stroke="{LIME}"
- stroke-width="3" stroke-linecap="round"/>
-</svg>
-"""
+LOGO=f"""<svg width="52" height="52" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect x="2" y="2" width="60" height="60" rx="16" fill="white" fill-opacity="0.12" stroke="white" stroke-opacity="0.5"/>
+<circle cx="32" cy="22" r="7" fill="{LIME}"/><circle cx="19" cy="40" r="6" fill="#fff"/>
+<circle cx="45" cy="40" r="6" fill="#fff"/><path d="M32 29c-6 0-9 6-9 6M32 29c6 0 9 6 9 6M25 44h14"
+stroke="{LIME}" stroke-width="3" stroke-linecap="round"/></svg>"""
 
 def header():
-    st.markdown(f"""
-    <div class="wih-header">
-      {LOGO_SVG}
-      <div>
-        <p class="wih-title">Workforce Intelligence Hub</p>
-        <div class="wih-sub">Petroleum Development Oman · Talent & Succession Analytics</div>
-      </div>
-      <div class="wih-badge">🌿 11,000 profiles · synthetic</div>
-    </div>
-    """, unsafe_allow_html=True)
+    html(f"""<div class="wih-header">{LOGO}<div>
+    <p class="wih-title">Workforce Intelligence Hub</p>
+    <div class="wih-sub">Petroleum Development Oman · Talent & Succession Analytics</div>
+    </div><div class="wih-badge">🌿 11,000 profiles · synthetic</div></div>""")
 
-def kpi(col, label, value, sub="", cls=""):
-    col.markdown(f"""<div class="kpi {cls}"><div class="lbl">{label}</div>
-    <div class="val">{value}</div><div class="sub">{sub}</div></div>""",
+def kpi(col,label,value,sub="",cls=""):
+    col.markdown(H(f"""<div class="kpi {cls}"><div class="lbl">{label}</div>
+    <div class="val">{value}</div><div class="sub">{sub}</div></div>"""),unsafe_allow_html=True)
+
+def sec(t): html(f'<div class="sec">{t}</div>')
+
+def barrow(col_or_st,label,val,color,right=""):
+    col_or_st.markdown(H(f"""<div class="rowitem" style="border-left-color:{color}">
+    <b>{label}</b> <span style="float:right;font-weight:800;color:{color}">{right}</span>
+    <div class="bar"><div style="background:{color};width:{max(3,min(100,val))}%"></div></div></div>"""),
     unsafe_allow_html=True)
 
-def sec(t): st.markdown(f'<div class="sec">{t}</div>', unsafe_allow_html=True)
-
-def gauge(value, title, good_high=True):
-    v = float(value)
-    color = GREEN if (v>=80)==good_high else (GOLD if 60<=v<80 else RED)
-    if not good_high:  # for gaps, high is bad
-        color = RED if v>=66 else (GOLD if v>=40 else GREEN)
-    src = pd.DataFrame({"k":["v","rest"],"val":[v,100-v]})
-    arc = alt.Chart(src).mark_arc(innerRadius=52, outerRadius=74, cornerRadius=4).encode(
-        theta=alt.Theta("val:Q", stack=True),
-        color=alt.Color("k:N", scale=alt.Scale(domain=["v","rest"],
-                        range=[color,"#E6ECE8"]), legend=None),
-        order=alt.Order("k:N", sort="descending"))
-    txt = alt.Chart(pd.DataFrame({"t":[f"{v:.0f}%"]})).mark_text(
-        fontSize=26, fontWeight="bold", color=GREEN_DEEP).encode(text="t:N")
-    cap = alt.Chart(pd.DataFrame({"t":[title]})).mark_text(
-        fontSize=12, color=SLATE, dy=44).encode(text="t:N")
-    return (arc+txt+cap).properties(height=170)
+def gauge(value,good_high=True):
+    v=float(value)
+    if good_high: color=GREEN if v>=75 else (GOLD if v>=55 else RED)
+    else:         color=RED if v>=66 else (GOLD if v>=40 else GREEN)
+    src=pd.DataFrame({"k":["v","rest"],"val":[v,100-v]})
+    arc=alt.Chart(src).mark_arc(innerRadius=54,outerRadius=76,cornerRadius=4).encode(
+        theta=alt.Theta("val:Q",stack=True),
+        color=alt.Color("k:N",scale=alt.Scale(domain=["v","rest"],range=[color,"#E6ECE8"]),legend=None),
+        order=alt.Order("k:N",sort="descending"))
+    txt=alt.Chart(pd.DataFrame({"t":[f"{v:.0f}%"]})).mark_text(
+        fontSize=27,fontWeight="bold",color=GREEN_DEEP).encode(text="t:N")
+    return (arc+txt).properties(height=155)
 
 # =========================================================
 # DATA
 # =========================================================
 @st.cache_data
 def load_data():
-    df = pd.read_csv(DATA_FILE, keep_default_na=False)
-    df["JoinYear"] = df["Date Joined PDO"].str[:4].astype(int)
+    df=pd.read_csv(DATA_FILE,keep_default_na=False)
+    df["JoinYear"]=df["Date Joined PDO"].str[:4].astype(int)
     for h in ["Readiness 1-2 yrs","Readiness 3 yrs","Readiness 5 yrs"]:
-        df[h+" %"] = df[h].apply(lambda s:int(re.search(r"(\d+)%",str(s)).group(1))
-                                 if re.search(r"(\d+)%",str(s)) else np.nan)
-    df["Sadara_n"] = pd.to_numeric(df["Sadara Survey (people leadership)"], errors="coerce")
-    df["S360"] = pd.to_numeric(df["360 leadership development survey"], errors="coerce")
-    # Emotional/EQ composite
-    df["EQ"] = (df["Big5 Emotional Stability"]*.3 + df["Big5 Agreeableness"]*.25 +
-                df["HPI Interpersonal Sensitivity"]*.25 + df["HPI Adjustment"]*.2).round(0)
-    ipfmap = {"EE":3,"AE":2,"MM":1,"":0}
-    df["perf"] = df["IPF 2026"].map(ipfmap).fillna(0)
+        df[h+" %"]=df[h].apply(lambda s:int(re.search(r"(\d+)%",str(s)).group(1)) if re.search(r"(\d+)%",str(s)) else np.nan)
+    df["Sadara_n"]=pd.to_numeric(df["Sadara Survey (people leadership)"],errors="coerce")
+    df["S360"]=pd.to_numeric(df["360 leadership development survey"],errors="coerce")
+    df["EQ"]=(df["Big5 Emotional Stability"]*.3+df["Big5 Agreeableness"]*.25+
+              df["HPI Interpersonal Sensitivity"]*.25+df["HPI Adjustment"]*.2).round(0)
+    df["perf"]=df["IPF 2026"].map({"EE":3,"AE":2,"MM":1,"":0}).fillna(0)
+    df["Name"]=df["First Name"]+" "+df["Last Name"]
     return df
 
-df = load_data()
-GROUP_ORDER = ["Director","1","2","3","4","5","6"]
-GLBL = {"Director":"Director","1":"G1 · Manager","2":"G2 · Head","3":"G3 · Lead",
-        "4":"G4 · Senior","5":"G5 · Junior","6":"G6 · Graduate"}
+df=load_data()
+GROUP_ORDER=["Director","1","2","3","4","5","6"]
+GLBL={"Director":"Director","1":"G1 · Manager","2":"G2 · Head","3":"G3 · Lead",
+      "4":"G4 · Senior","5":"G5 · Junior","6":"G6 · Graduate"}
 
 def comp_health(frame):
-    """Return org competency health 0-100 and gap% (share of Knowledge)."""
     cnt={"Knowledge":0,"Skill":0,"Mastery":0}
     for cba in frame["Competence Based Assessment"]:
         for part in str(cba).split(";"):
@@ -192,9 +159,22 @@ def comp_health(frame):
                 lvl=part.rsplit(":",1)[1].strip()
                 if lvl in cnt: cnt[lvl]+=1
     tot=sum(cnt.values()) or 1
-    health=(cnt["Mastery"]*100+cnt["Skill"]*60+cnt["Knowledge"]*30)/tot
-    gap=cnt["Knowledge"]/tot*100
-    return round(health), round(gap), cnt
+    return round((cnt["Mastery"]*100+cnt["Skill"]*60+cnt["Knowledge"]*30)/tot), round(cnt["Knowledge"]/tot*100), cnt
+
+def person_strengths_gaps(r):
+    strengths=[]; gaps=[]
+    for part in str(r["Competence Based Assessment"]).split(";"):
+        if ":" in part:
+            n,l=part.rsplit(":",1); n,l=n.strip(),l.strip()
+            if l=="Mastery": strengths.append(n)
+            elif l=="Knowledge": gaps.append(n)
+    if r["Sadara_n"]==r["Sadara_n"] and r["Sadara_n"]>=80: strengths.append("Strong people-leadership (Sadara)")
+    if r["HPI Ambition"]>=65: strengths.append("High drive & ambition")
+    if r["EQ"]>=65: strengths.append("High emotional intelligence")
+    if r["Sadara_n"]==r["Sadara_n"] and r["Sadara_n"]<60: gaps.append("People-leadership (Sadara) below par")
+    if r["HDS Skeptical"]>=60: gaps.append("Can be overly skeptical (derailer)")
+    if r["Readiness 1-2 yrs %"]<60: gaps.append("Readiness for next role still maturing")
+    return strengths[:3] or ["Solid all-round contributor"], gaps[:3] or ["No major gaps flagged"]
 
 # =========================================================
 # CLAUDE
@@ -208,76 +188,61 @@ def get_client():
     key=key or os.environ.get("ANTHROPIC_API_KEY")
     return Anthropic(api_key=key) if key else None
 client=get_client()
-def ask(system,user,mx=1400):
+def ask(system,user,mx=1200):
     if client is None: return None
     m=client.messages.create(model=MODEL,max_tokens=mx,system=system,
                              messages=[{"role":"user","content":user}])
     return m.content[0].text
 
 # =========================================================
-# SIDEBAR NAV
+# SIDEBAR
 # =========================================================
-st.sidebar.markdown(f"""<div class="sb-brand">{LOGO_SVG}
-<h3>Workforce Intelligence</h3><span>PDO Talent Hub</span></div>""",
-unsafe_allow_html=True)
-page = st.sidebar.radio("nav", [
-    "📊  Executive Summary",
-    "🎯  Talent Profile",
-    "🤝  Dream Team",
-    "🎓  Training & Upskilling"], label_visibility="collapsed")
+st.sidebar.markdown(H(f"""<div class="sb-brand">{LOGO}
+<h3>Workforce Intelligence</h3><span>PDO Talent Hub</span></div>"""),unsafe_allow_html=True)
+page=st.sidebar.radio("nav",["📊  Executive Summary","🎯  Talent Profile",
+                             "🤝  Dream Team","🎓  Training & Upskilling"],label_visibility="collapsed")
 st.sidebar.markdown("<br>",unsafe_allow_html=True)
-if client is None:
-    st.sidebar.warning("⚠️ AI offline — add ANTHROPIC_API_KEY in Secrets.")
-else:
-    st.sidebar.success("🟢 AI Advisor connected")
+st.sidebar.success("🟢 AI Advisor connected") if client else st.sidebar.warning("⚠️ AI offline — add ANTHROPIC_API_KEY")
 
 # =========================================================
 # PAGE 1 — EXECUTIVE SUMMARY
 # =========================================================
 if "Executive" in page:
     header()
-
-    # Filters as dropdowns
-    f1,f2,f3 = st.columns([1.2,1.4,1])
-    dirs = ["All Directorates"]+sorted(df["Directorate"].unique())
-    fdir = f1.selectbox("🏢 Directorate", dirs)
-    yr = f2.slider("📅 Joined PDO — year range", 1995, 2026, (1995,2026))
-    grp = f3.multiselect("🎚️ Job Group", GROUP_ORDER,
-                         default=GROUP_ORDER, format_func=lambda g:GLBL[g])
-
+    f1,f2,f3=st.columns([1.2,1.4,1])
+    fdir=f1.selectbox("🏢 Directorate",["All Directorates"]+sorted(df["Directorate"].unique()))
+    yr=f2.slider("📅 Joined PDO — year range",1995,2026,(1995,2026))
+    grp=f3.multiselect("🎚️ Job Group",GROUP_ORDER,default=GROUP_ORDER,format_func=lambda g:GLBL[g])
     d=df.copy()
     if fdir!="All Directorates": d=d[d["Directorate"]==fdir]
     d=d[(d["JoinYear"]>=yr[0])&(d["JoinYear"]<=yr[1])]
     if grp: d=d[d["Job Group"].astype(str).isin(grp)]
 
-    # ---- KPI row ----
-    health,gap,_ = comp_health(d)
+    health,gap,_=comp_health(d)
     k=st.columns(6)
     kpi(k[0],"Headcount",f"{len(d):,}","active profiles")
     kpi(k[1],"Omanisation",f"{d['Nationality'].eq('Omani').mean()*100:.0f}%","of workforce","alt2")
     kpi(k[2],"Female",f"{d['Gender'].eq('F').mean()*100:.0f}%","diversity","alt2")
     kpi(k[3],"High Potential",f"{d['Potential Index Band'].isin(['High Potential','Expert Track']).mean()*100:.0f}%","talent pool","alt")
     kpi(k[4],"Avg PDO Exp",f"{d['PDO Experience (yrs)'].mean():.0f} yr","tenure","alt3")
-    kpi(k[5],"Competency Health",f"{health}/100","org capability")
+    kpi(k[5],"Competency Health",f"{health}/100","capability")
 
     st.markdown("<br>",unsafe_allow_html=True)
-
-    # ---- Row: gauges (org status) ----
     sec("🧭 Organisation Status — at a glance")
-    g=st.columns(4)
-    # leadership readiness = avg readiness of managers(G1)->director & heads(G2)->snr mgr
     lead_pool=d[d["Job Group"].astype(str).isin(["1","2","3"])]
     lead_ready=lead_pool["Readiness 1-2 yrs %"].mean() if len(lead_pool) else 0
-    with g[0]: st.altair_chart(gauge(health,"Competency Health"),use_container_width=True)
-    with g[1]: st.altair_chart(gauge(gap,"Capability Gap (Knowledge%)",good_high=False),use_container_width=True)
-    with g[2]: st.altair_chart(gauge(lead_ready,"Leadership Readiness"),use_container_width=True)
     sad=d["Sadara_n"].dropna()
-    with g[3]: st.altair_chart(gauge(sad.mean() if len(sad) else 0,"People-Leadership (Sadara)"),use_container_width=True)
+    g=st.columns(4)
+    titles=["Competency Health","Capability Gap","Leadership Readiness","People-Leadership (Sadara)"]
+    vals=[health,gap,lead_ready,sad.mean() if len(sad) else 0]
+    goods=[True,False,True,True]
+    for i in range(4):
+        with g[i]:
+            st.altair_chart(gauge(vals[i],goods[i]),use_container_width=True)
+            html(f'<div class="gcap">{titles[i]}</div>')
 
     st.markdown("<br>",unsafe_allow_html=True)
-
-    # ---- Row: workforce + demographics ----
-    c1,c2 = st.columns([1.4,1])
+    c1,c2=st.columns([1.4,1])
     with c1:
         sec("👥 Workforce Structure")
         vc=d["Job Group"].astype(str).value_counts().reindex(GROUP_ORDER).fillna(0)
@@ -291,262 +256,227 @@ if "Executive" in page:
         st.altair_chart((ch+lbl).properties(height=300),use_container_width=True)
     with c2:
         sec("🌍 Nationality & Gender")
-        def donut(series,scheme):
+        def donut(series):
             dd=series.value_counts().reset_index(); dd.columns=["cat","n"]
-            return alt.Chart(dd).mark_arc(innerRadius=48,cornerRadius=3).encode(
+            return alt.Chart(dd).mark_arc(innerRadius=45,cornerRadius=3).encode(
                 theta="n:Q",color=alt.Color("cat:N",scale=alt.Scale(range=GREEN_SCHEME),
-                legend=alt.Legend(orient="bottom",title=None)),tooltip=["cat","n"]).properties(height=145)
-        st.altair_chart(donut(d["Nationality"],None),use_container_width=True)
-        st.altair_chart(donut(d["Gender"],None),use_container_width=True)
+                legend=alt.Legend(orient="bottom",title=None)),tooltip=["cat","n"]).properties(height=140)
+        st.altair_chart(donut(d["Nationality"]),use_container_width=True)
+        st.altair_chart(donut(d["Gender"]),use_container_width=True)
 
     st.markdown("<br>",unsafe_allow_html=True)
-
-    # ---- Strengths / improvement / leadership skills ----
     cm,ct={}, {}
     for cba in d["Competence Based Assessment"]:
         for part in str(cba).split(";"):
             if ":" in part:
                 n,l=part.rsplit(":",1); n,l=n.strip(),l.strip()
-                ct[n]=ct.get(n,0)+1
-                cm[n]=cm.get(n,0)+{"Mastery":3,"Skill":2,"Knowledge":1}.get(l,0)
+                ct[n]=ct.get(n,0)+1; cm[n]=cm.get(n,0)+{"Mastery":3,"Skill":2,"Knowledge":1}.get(l,0)
     idx={c:cm[c]/ct[c] for c in cm if ct[c]>30}
     ranked=sorted(idx.items(),key=lambda x:x[1],reverse=True)
-    THEME_S=["Transformational Leadership","Operational Excellence","Technical Mastery",
-             "Safety Culture","Delivery & Execution"]
-    THEME_G=["Digital Transformation","Agile Ways of Working","Data & Analytics",
-             "Commercial Acumen","Innovation & Design Thinking"]
+    THEME_S=["Transformational Leadership","Operational Excellence","Technical Mastery","Safety Culture","Delivery & Execution"]
+    THEME_G=["Digital & AI Transformation","Agile Ways of Working","Data & Analytics","Commercial Acumen","Innovation & Design"]
     s1,s2,s3=st.columns(3)
     with s1:
         sec("💪 Top Strengths")
-        for (c,v),t in zip(ranked[:5],THEME_S):
-            st.markdown(f"""<div class="rowitem"><b>{t}</b><br>
-            <span style='color:{SLATE};font-size:.82rem'>anchored by {c} · {v/3*100:.0f}% depth</span>
-            <div style='background:#E6ECE8;border-radius:6px;height:7px;margin-top:6px'>
-            <div style='background:{GREEN};width:{v/3*100:.0f}%;height:7px;border-radius:6px'></div></div></div>""",
-            unsafe_allow_html=True)
+        for (c,v),t in zip(ranked[:5],THEME_S): barrow(st,t,v/3*100,GREEN,f"{v/3*100:.0f}%")
     with s2:
         sec("🎯 Improvement Areas")
-        for (c,v),t in zip(ranked[-5:][::-1],THEME_G):
-            st.markdown(f"""<div class="rowitem" style="border-left-color:{GOLD}"><b>{t}</b><br>
-            <span style='color:{SLATE};font-size:.82rem'>gap in {c} · {v/3*100:.0f}% depth</span>
-            <div style='background:#E6ECE8;border-radius:6px;height:7px;margin-top:6px'>
-            <div style='background:{GOLD};width:{v/3*100:.0f}%;height:7px;border-radius:6px'></div></div></div>""",
-            unsafe_allow_html=True)
+        for (c,v),t in zip(ranked[-5:][::-1],THEME_G): barrow(st,t,v/3*100,GOLD,f"{v/3*100:.0f}%")
     with s3:
-        sec("🌟 Leadership Bench (readiness)")
-        lead_skills=[("Strategic Thinking",lead_ready),("People Leadership",sad.mean() if len(sad) else 0),
-                     ("Change Leadership",max(30,lead_ready-8)),("Decision Making",min(95,lead_ready+6)),
-                     ("Stakeholder Mgmt",max(35,lead_ready-3))]
-        for name,val in lead_skills:
-            col = GREEN if val>=70 else (GOLD if val>=50 else RED)
-            st.markdown(f"""<div class="rowitem" style="border-left-color:{col}"><b>{name}</b>
-            <span style='float:right;font-weight:800;color:{col}'>{val:.0f}%</span>
-            <div style='background:#E6ECE8;border-radius:6px;height:7px;margin-top:6px'>
-            <div style='background:{col};width:{val:.0f}%;height:7px;border-radius:6px'></div></div></div>""",
-            unsafe_allow_html=True)
+        sec("🌟 Leadership Bench")
+        ls=[("Strategic Thinking",lead_ready),("People Leadership",sad.mean() if len(sad) else 0),
+            ("Change Leadership",max(30,lead_ready-8)),("Decision Making",min(95,lead_ready+6)),
+            ("Stakeholder Mgmt",max(35,lead_ready-3))]
+        for n,val in ls:
+            col=GREEN if val>=70 else (GOLD if val>=50 else RED)
+            barrow(st,n,val,col,f"{val:.0f}%")
 
     st.markdown("<br>",unsafe_allow_html=True)
-
-    # ---- Succession readiness — redesigned ----
-    sec("🪜 Succession Readiness — effort needed to build the next layer")
+    sec("🪜 Succession Readiness — effort to build the next layer")
     nxt={"Director":"→ Exec Director","1":"→ Director","2":"→ Snr Manager","3":"→ Head",
          "4":"→ Team Lead","5":"→ Senior","6":"→ Officer"}
     rows=[]
     for gg in GROUP_ORDER:
         sub=d[d["Job Group"].astype(str)==gg]
         if len(sub):
-            avg=sub["Readiness 1-2 yrs %"].mean()
-            rn=(sub["Readiness 1-2 yrs %"]>=80).mean()*100
-            rows.append({"Transition":f"{GLBL[gg]} {nxt[gg]}","Avg":round(avg),
-                         "ReadyNow":round(rn),"Pool":len(sub)})
-    rdf=pd.DataFrame(rows)
-    cA,cB=st.columns([1.3,1])
+            rows.append({"Transition":f"{GLBL[gg]} {nxt[gg]}","Avg":round(sub['Readiness 1-2 yrs %'].mean()),
+                         "ReadyNow":round((sub['Readiness 1-2 yrs %']>=80).mean()*100),"Pool":len(sub)})
+    cA,cB=st.columns([1.25,1])
     with cA:
-        base=alt.Chart(rdf).encode(
-            y=alt.Y("Transition:N",sort=list(rdf["Transition"]),title=None,
-                    axis=alt.Axis(labelLimit=220,labelFontSize=12,labelColor=GREEN_DEEP)))
-        track=base.mark_bar(color="#E6ECE8",cornerRadius=7,size=18).encode(x=alt.value(0),x2=alt.value(300))
-        bar=base.mark_bar(cornerRadius=7,size=18).encode(
+        rdf=pd.DataFrame(rows)
+        base=alt.Chart(rdf).encode(y=alt.Y("Transition:N",sort=list(rdf["Transition"]),title=None,
+             axis=alt.Axis(labelLimit=240,labelFontSize=12,labelColor=GREEN_DEEP)))
+        bar=base.mark_bar(cornerRadius=7,size=20).encode(
             x=alt.X("Avg:Q",title="Avg readiness %",scale=alt.Scale(domain=[0,100])),
             color=alt.Color("Avg:Q",scale=alt.Scale(domain=[30,60,90],range=[RED,GOLD,GREEN]),legend=None),
             tooltip=["Transition","Avg","ReadyNow","Pool"])
-        st.altair_chart((track+bar).properties(height=300),use_container_width=True)
+        st.altair_chart((bar).properties(height=300),use_container_width=True)
     with cB:
-        st.markdown("<div style='height:6px'></div>",unsafe_allow_html=True)
         for r in rows:
-            col = GREEN if r["Avg"]>=70 else (GOLD if r["Avg"]>=50 else RED)
-            st.markdown(f"""<div class="rowitem" style="border-left-color:{col}">
-            <b>{r['Transition']}</b>
-            <span style='float:right;background:{col};color:#fff;padding:1px 9px;border-radius:12px;font-size:.78rem'>{r['ReadyNow']}% ready now</span>
-            <div style='color:{SLATE};font-size:.78rem;margin-top:3px'>pool {r['Pool']:,} · avg {r['Avg']}%</div></div>""",
-            unsafe_allow_html=True)
+            col=GREEN if r["Avg"]>=70 else (GOLD if r["Avg"]>=50 else RED)
+            html(f"""<div class="rowitem" style="border-left-color:{col}"><b>{r['Transition']}</b>
+            <span style="float:right;background:{col};color:#fff;padding:1px 9px;border-radius:12px;font-size:.76rem">{r['ReadyNow']}% ready</span>
+            <div style="color:{SLATE};font-size:.76rem;margin-top:3px">pool {r['Pool']:,} · avg {r['Avg']}%</div></div>""")
 
-    st.markdown("<br>",unsafe_allow_html=True)
-    if client and st.button("🧠 Generate executive narrative"):
-        payload={"headcount":len(d),"omanisation":f"{d['Nationality'].eq('Omani').mean()*100:.0f}%",
-                 "health":health,"gap":gap,"leadership_readiness":round(lead_ready),
-                 "strengths":THEME_S,"improvements":THEME_G,"succession":rows}
-        out=ask("You are a PDO HR strategy advisor. Write a crisp executive narrative (<200 words) "
-                "on organisational talent health: strengths, gaps, succession risk, 3 priority actions. "
-                "Synthetic data.",json.dumps(payload))
-        st.markdown(f'<div class="card">{out}</div>',unsafe_allow_html=True)
+    if client:
+        st.markdown("<br>",unsafe_allow_html=True)
+        if st.button("🧠 Generate executive narrative"):
+            payload={"headcount":len(d),"omanisation":f"{d['Nationality'].eq('Omani').mean()*100:.0f}%",
+                     "health":health,"gap":gap,"leadership_readiness":round(lead_ready),
+                     "strengths":THEME_S,"improvements":THEME_G,"succession":rows}
+            out=ask("PDO HR strategy advisor. Crisp executive narrative <180 words: strengths, gaps, "
+                    "succession risk, 3 priority actions. Synthetic data.",json.dumps(payload))
+            html(f'<div class="card">{out}</div>')
 
 # =========================================================
 # PAGE 2 — TALENT PROFILE
 # =========================================================
 elif "Talent" in page:
     header()
-    st.markdown(f"""<div class="card" style="border-left:5px solid {GREEN}">
-    <span style="font-size:1.05rem;color:{GREEN_DEEP};font-weight:700">🎯 Find the right person, instantly.</span><br>
-    <span style="color:{SLATE}">Tell the Hub the role or talent you're looking for. It scans your workforce —
-    performance, readiness, Sadara, 360°, Hogan and behavioural signals — and returns a ranked,
-    visual comparison so you can decide with confidence.</span></div>""",unsafe_allow_html=True)
+    html(f'<div style="color:{SLATE};font-size:.95rem;margin:2px 0 8px 2px">🎯 <b>Find the right person, instantly.</b> '
+         f'Type the role or talent you need — the Hub scans your whole workforce and ranks the best fits with full reasoning.</div>')
+    q=st.text_area("Search",placeholder="e.g. Best successor for HR (People & Culture) Director with strong leadership and change capability…",
+                   label_visibility="collapsed",height=90)
+    c2,c3=st.columns([1,1])
+    fdir=c2.selectbox("🏢 Directorate filter",["All (whole org)"]+sorted(df["Directorate"].unique()))
+    topn=c3.slider("👥 Candidates to compare",3,10,6)
+    go=st.button("🚀 Find best-fit talent",type="primary")
 
-    # target-role hierarchy
-    TARGET_RULES=[
-        ("executive director",{"primary":["Director"],"exc":["1"]}),
-        ("director",{"primary":["1"],"exc":["2"]}),
-        ("senior manager",{"primary":["2"],"exc":["3"]}),
-        ("head",{"primary":["3"],"exc":["4"]}),
-        ("manager",{"primary":["2"],"exc":["3"]}),
-        ("team lead",{"primary":["4"],"exc":["5"]}),
-        ("lead",{"primary":["4"],"exc":["5"]}),
-        ("senior",{"primary":["5"],"exc":["6"]}),
-    ]
-    c1,c2,c3=st.columns([2,1,1])
-    q=c1.text_input("🔍 What role or talent are you looking for?",
-                    placeholder="e.g. Best successor for Engineering & Projects Director")
-    fdir=c2.selectbox("Directorate filter",["All (whole org)"]+sorted(df["Directorate"].unique()))
-    topn=c3.slider("Candidates to compare",3,10,6)
+    TARGET_RULES=[("executive director",{"primary":["Director"],"exc":["1"]}),
+        ("director",{"primary":["1"],"exc":["2"]}),("senior manager",{"primary":["2"],"exc":["3"]}),
+        ("head",{"primary":["3"],"exc":["4"]}),("manager",{"primary":["2"],"exc":["3"]}),
+        ("team lead",{"primary":["4"],"exc":["5"]}),("lead",{"primary":["4"],"exc":["5"]}),
+        ("senior",{"primary":["5"],"exc":["6"]})]
 
-    if st.button("🚀 Find best-fit talent",type="primary") and q:
-        ql=q.lower()
-        rule=None; tname="role"
+    if go and q:
+        ql=q.lower(); rule=None; tname="role"
         for key,r in TARGET_RULES:
             if key in ql: rule=r; tname=key.title(); break
         d=df.copy()
         if fdir!="All (whole org)": d=d[d["Directorate"]==fdir]
-        note=""
         if rule:
-            elig=rule["primary"]+rule["exc"]
-            d=d[d["Job Group"].astype(str).isin(elig)]
-            note=(f"Applying hierarchy: **{tname}** candidates are drawn from "
-                  f"**{', '.join(GLBL[g] for g in rule['primary'])}**"
-                  + (f" (exceptionally {', '.join(GLBL[g] for g in rule['exc'])})" if rule['exc'] else "")+".")
-        # score
+            d=d[d["Job Group"].astype(str).isin(rule["primary"]+rule["exc"])]
         d=d.copy()
         d["Ready%"]=d["Readiness 1-2 yrs %"].fillna(0)
-        d["fit"]=(d["perf"]*10 + d["Ready%"]*0.5 + d["Sadara_n"].fillna(60)*0.2 +
-                  d["S360"].fillna(65)*0.15 + d["EQ"].fillna(55)*0.1)
-        # Hierarchy weighting: primary group strongly preferred; exception group only rarely
+        d["fitraw"]=(d["perf"]*10+d["Ready%"]*.5+d["Sadara_n"].fillna(60)*.2+d["S360"].fillna(65)*.15+d["EQ"].fillna(55)*.1)
         if rule:
-            d.loc[d["Job Group"].astype(str).isin(rule["primary"]),"fit"]+=40
-            # exception candidates must be truly exceptional (top performers) to compete
-            exc_mask=d["Job Group"].astype(str).isin(rule["exc"])
-            d.loc[exc_mask & (d["perf"]<3),"fit"]-=60   # only EE-rated exceptions survive
-        d=d.sort_values("fit",ascending=False).head(topn)
-        if note: st.info(note)
-        st.success(f"Scanned **{len(df) if fdir=='All (whole org)' else 'directorate'}** profiles · "
-                   f"top **{len(d)}** matches for *{q}*.")
+            d.loc[d["Job Group"].astype(str).isin(rule["primary"]),"fitraw"]+=40
+            exc=d["Job Group"].astype(str).isin(rule["exc"])
+            d.loc[exc&(d["perf"]<3),"fitraw"]-=60
+        d=d.sort_values("fitraw",ascending=False).head(topn).reset_index(drop=True)
+        lo,hi=d["fitraw"].min(),d["fitraw"].max()
+        d["Match"]=((d["fitraw"]-lo)/(hi-lo+1e-9)*24+75).round(0)  # 75-99 range
+        d.loc[0,"Match"]=max(d.loc[0,"Match"],96)
 
-        d["Name"]=d["First Name"]+" "+d["Last Name"]
-        top=d.iloc[0]
+        if rule:
+            st.info(f"Hierarchy applied — **{tname}** candidates come from "
+                    f"**{', '.join(GLBL[g] for g in rule['primary'])}**"
+                    f"{' (exceptionally '+', '.join(GLBL[g] for g in rule['exc'])+')' if rule['exc'] else ''}.")
+        st.success(f"Scanned the workforce · top **{len(d)}** matches for *{q}*.")
 
-        # ---- Top candidate spotlight ----
-        sec("🏆 Top Recommendation")
-        s=st.columns([1.3,1,1,1,1])
-        kpi(s[0],"Best Fit",top["Name"],top["Current Job Title"])
-        kpi(s[1],"Readiness",f"{top['Ready%']:.0f}%",f"for {tname}","alt2")
-        kpi(s[2],"IPF 2026",top["IPF 2026"],"performance","alt")
-        kpi(s[3],"Sadara",f"{top['Sadara_n']:.0f}" if pd.notna(top['Sadara_n']) else "N/A","people-leadership","alt3")
-        kpi(s[4],"EQ Index",f"{top['EQ']:.0f}","emotional")
+        # ---- 1) Candidate list with match % ----
+        sec("📋 Potential Candidates (ranked by match)")
+        for i,r in d.iterrows():
+            crown="👑 " if i==0 else ""
+            col=GREEN if r["Match"]>=90 else (GOLD if r["Match"]>=82 else SLATE)
+            html(f"""<div class="rowitem" style="border-left-color:{col}">
+            <b>{crown}{r['Name']}</b> <span class="pill s">{GLBL[str(r['Job Group'])]}</span>
+            <span style="color:{SLATE};font-size:.8rem">{r['Current Job Title']} · {r['Directorate']}</span>
+            <span style="float:right;font-weight:800;color:{col};font-size:1.05rem">{r['Match']:.0f}% match</span>
+            <div class="bar"><div style="background:{col};width:{r['Match']}%"></div></div></div>""")
 
         st.markdown("<br>",unsafe_allow_html=True)
+        # ---- 2) Per-candidate: readiness, last 3y IPF, strengths, gaps ----
+        sec("🔎 Candidate Detail — readiness, performance trend, strengths & gaps")
+        for i,r in d.iterrows():
+            s,g=person_strengths_gaps(r)
+            ipfs="".join(f'<span class="pill {"g" if v=="EE" else ("y" if v=="AE" else "s")}">{y}: {v or "—"}</span>'
+                         for y,v in [("2024",r["IPF 2024"]),("2025",r["IPF 2025"]),("2026",r["IPF 2026"])])
+            sada=f"{r['Sadara_n']:.0f}" if pd.notna(r['Sadara_n']) else "N/A"
+            strg="".join(f'<span class="pill g">✔ {x}</span>' for x in s)
+            gapg="".join(f'<span class="pill r">▲ {x}</span>' for x in g)
+            html(f"""<div class="card">
+            <b style="color:{GREEN_DEEP};font-size:1.02rem">{'👑 ' if i==0 else ''}{r['Name']}</b>
+            <span style="float:right;color:{SLATE};font-size:.82rem">Readiness (1–2y): <b style="color:{GREEN_DARK}">{r['Ready%']:.0f}%</b> · Sadara {sada} · EQ {r['EQ']:.0f}</span>
+            <div style="margin:8px 0 4px 0"><span style="color:{SLATE};font-size:.8rem">Last 3-yr IPF:</span> {ipfs}</div>
+            <div style="margin-top:6px">{strg}</div><div style="margin-top:4px">{gapg}</div></div>""")
 
-        # ---- Comparison dashboard ----
-        cc1,cc2=st.columns([1.3,1])
+        st.markdown("<br>",unsafe_allow_html=True)
+        # ---- 3) Best fit selection deep-dive ----
+        top=d.loc[0]
+        sec(f"🏆 Best-Fit Selection — {top['Name']}")
+        s,g=person_strengths_gaps(top)
+        kc=st.columns(5)
+        kpi(kc[0],"Match",f"{top['Match']:.0f}%",f"for {tname}")
+        kpi(kc[1],"Readiness",f"{top['Ready%']:.0f}%","1–2 yr horizon","alt2")
+        kpi(kc[2],"IPF 2026",top["IPF 2026"],"performance","alt")
+        kpi(kc[3],"Sadara",f"{top['Sadara_n']:.0f}" if pd.notna(top['Sadara_n']) else "N/A","people-leadership","alt3")
+        kpi(kc[4],"360° / EQ",f"{top['S360']:.0f} / {top['EQ']:.0f}","leadership signals")
+
+        st.markdown("<br>",unsafe_allow_html=True)
+        cc1,cc2=st.columns([1,1])
         with cc1:
-            sec("📊 Candidate Comparison")
-            comp=d[["Name","Ready%","Sadara_n","S360","EQ"]].copy()
-            comp["Sadara_n"]=comp["Sadara_n"].fillna(0)
-            melt=comp.melt("Name",var_name="Metric",value_name="Score")
-            mmap={"Ready%":"Readiness","Sadara_n":"Sadara","S360":"360°","EQ":"EQ"}
-            melt["Metric"]=melt["Metric"].map(mmap)
-            ch=alt.Chart(melt).mark_bar(cornerRadiusEnd=4).encode(
-                x=alt.X("Score:Q"),y=alt.Y("Name:N",sort="-x",title=None),
-                color=alt.Color("Metric:N",scale=alt.Scale(range=GREEN_SCHEME[1:5]),
-                                legend=alt.Legend(orient="top",title=None)),
-                row=alt.Row("Metric:N",title=None,header=alt.Header(labelFontWeight="bold")),
-                tooltip=["Name","Metric","Score"]).properties(height=70)
-            st.altair_chart(ch,use_container_width=True)
+            sec("🧠 Hogan / Behavioural Signals")
+            psy=[("Ambition (HPI)",top["HPI Ambition"]),("Adjustment (HPI)",top["HPI Adjustment"]),
+                 ("Prudence (HPI)",top["HPI Prudence"]),("Dominance (DISC)",top["DISC Dominance"]),
+                 ("Conscientiousness",top["Big5 Conscientiousness"]),("Learning Approach",top["HPI Learning Approach"])]
+            for n,val in psy:
+                col=GREEN if val>=60 else (GOLD if val>=45 else RED)
+                barrow(st,n,val,col,f"{val:.0f}")
         with cc2:
-            sec("🧠 Behavioural Fingerprint")
-            psy=["HPI Ambition","DISC Dominance","Big5 Conscientiousness",
-                 "Big5 Emotional Stability","HPI Learning Approach","EQ"]
-            hm=d[["Name"]+psy].melt("Name",var_name="Trait",value_name="Score")
-            hm["Trait"]=hm["Trait"].str.replace("Big5 ","").str.replace("HPI ","").str.replace("DISC ","")
-            heat=alt.Chart(hm).mark_rect().encode(
-                x=alt.X("Trait:N",title=None,axis=alt.Axis(labelAngle=-40)),
-                y=alt.Y("Name:N",title=None),
-                color=alt.Color("Score:Q",scale=alt.Scale(range=["#F4FAF6",GREEN_DARK]),legend=None),
-                tooltip=["Name","Trait","Score"]).properties(height=260)
-            st.altair_chart(heat,use_container_width=True)
+            sec("📈 3-Year Performance & Readiness")
+            trend=pd.DataFrame({"Year":["2024","2025","2026"],
+                "Score":[{"EE":3,"AE":2,"MM":1,"":0}.get(top[f"IPF {y}"],0) for y in ["2024","2025","2026"]]})
+            ch=alt.Chart(trend).mark_line(point=alt.OverlayMarkDef(size=90,color=GREEN),color=GREEN,strokeWidth=3).encode(
+                x=alt.X("Year:N",title=None),
+                y=alt.Y("Score:Q",scale=alt.Scale(domain=[0,3]),
+                        axis=alt.Axis(values=[1,2,3],labelExpr="datum.value==3?'EE':datum.value==2?'AE':'MM'",title=None)),
+                tooltip=["Year","Score"]).properties(height=150)
+            st.altair_chart(ch,use_container_width=True)
+            rl=pd.DataFrame({"Horizon":["1–2 yr","3 yr","5 yr"],
+                "Coverage":[top["Readiness 1-2 yrs %"],top["Readiness 3 yrs %"],top["Readiness 5 yrs %"]]})
+            ch=alt.Chart(rl).mark_bar(cornerRadiusEnd=4).encode(
+                x=alt.X("Coverage:Q",scale=alt.Scale(domain=[0,100]),title="Competency coverage %"),
+                y=alt.Y("Horizon:N",title=None),
+                color=alt.Color("Coverage:Q",scale=alt.Scale(domain=[30,60,90],range=[RED,GOLD,GREEN]),legend=None),
+                tooltip=["Horizon","Coverage"]).properties(height=120)
+            st.altair_chart(ch,use_container_width=True)
 
-        # ---- Readiness ladder per candidate ----
-        sec("🪜 Readiness for Next Roles")
-        rl=[]
-        for _,r in d.iterrows():
-            for h,lbl in [("Readiness 1-2 yrs %","1–2 yr"),("Readiness 3 yrs %","3 yr"),("Readiness 5 yrs %","5 yr")]:
-                rl.append({"Name":r["Name"],"Horizon":lbl,"Coverage":r[h]})
-        rld=pd.DataFrame(rl)
-        ch=alt.Chart(rld).mark_bar(cornerRadiusEnd=3).encode(
-            x=alt.X("Coverage:Q",scale=alt.Scale(domain=[0,100])),
-            y=alt.Y("Horizon:N",title=None),
-            color=alt.Color("Coverage:Q",scale=alt.Scale(domain=[30,60,90],range=[RED,GOLD,GREEN]),legend=None),
-            row=alt.Row("Name:N",title=None,header=alt.Header(labelFontWeight="bold",labelAlign="left")),
-            tooltip=["Name","Horizon","Coverage"]).properties(height=54)
-        st.altair_chart(ch,use_container_width=True)
-
-        # ---- AI insight (concise) ----
+        # AI verdict — forced consistent with #1
         if client:
-            cols=["Name","Directorate","Current Job Title","Job Group","IPF 2026",
-                  "Ready%","Sadara_n","S360","EQ","Competence Based Assessment","Career History"]
-            out=ask("You are the PDO Talent Advisor. Give a SHORT executive verdict (<160 words): "
-                    "name the top pick and 2 runners-up with a one-line reason each (cite readiness %, "
-                    "Sadara, IPF, EQ). End with one succession risk. No long prose. Synthetic data.",
-                    f"Role: {q}\nCandidates:\n{d[cols].to_json(orient='records')}")
+            cols=["Name","Directorate","Current Job Title","Job Group","IPF 2024","IPF 2025","IPF 2026",
+                  "Ready%","Sadara_n","S360","EQ","Match"]
+            out=ask(f"You are the PDO Talent Advisor. The SELECTED best-fit is **{top['Name']}** (candidate #1) — "
+                    f"you MUST endorse this person as the top pick and stay consistent with the ranking order given. "
+                    f"In <160 words explain WHY {top['Name']} is the right choice (cite match %, readiness, Sadara, "
+                    f"360°, IPF trend, EQ) and name 2 runners-up in one line each. Synthetic data.",
+                    f"Role: {q}\nRanked candidates (row 0 = selected):\n{d[cols].to_json(orient='records')}")
             sec("💡 Advisor Verdict")
-            st.markdown(f'<div class="card">{out}</div>',unsafe_allow_html=True)
+            html(f'<div class="card">{out}</div>')
 
-        # ---- Shortlisted data — visible by default ----
         sec("📋 Shortlisted Data Used")
-        show=["Company Number","Name","Directorate","Current Job Title","Job Group",
+        show=["Company Number","Name","Directorate","Current Job Title","Job Group","Match",
               "IPF 2026","Ready%","Sadara_n","S360","EQ","Potential Index Band"]
-        st.dataframe(d[show].rename(columns={"Sadara_n":"Sadara","S360":"360°"}),
-                     hide_index=True,use_container_width=True)
+        st.dataframe(d[show].rename(columns={"Sadara_n":"Sadara","S360":"360°"}),hide_index=True,use_container_width=True)
 
 # =========================================================
 # PAGE 3 — DREAM TEAM
 # =========================================================
 elif "Dream" in page:
     header()
-    st.markdown(f"""<div class="card" style="border-left:5px solid {GREEN}">
-    <span style="font-size:1.05rem;color:{GREEN_DEEP};font-weight:700">🤝 Build your ideal task force.</span><br>
-    <span style="color:{SLATE}">Describe the mission. The Hub scans all 11,000 people — experience, Sadara
-    behaviour, teamwork and performance — and assembles a balanced, cross-functional team with a
-    recommended lead and clear reasons for every pick.</span></div>""",unsafe_allow_html=True)
+    html(f'<div style="color:{SLATE};font-size:.95rem;margin:2px 0 8px 2px">🤝 <b>Build your ideal task force.</b> '
+         f'Describe the mission — the Hub scans all 11,000 people and assembles a balanced, cross-functional team with a recommended lead.</div>')
+    scope=st.text_area("Mission",placeholder="e.g. Stand up a Microsoft Fabric data platform task force to unify PDO reporting…",
+                       label_visibility="collapsed",height=90)
+    c1,c2=st.columns([1,1])
+    size=c1.slider("👥 Team size",4,12,7)
+    lead_dir=c2.selectbox("🏢 Primary directorate (weighted)",["Auto-detect"]+sorted(df["Directorate"].unique()))
+    go=st.button("🛠️ Build Dream Team",type="primary")
 
-    scope=st.text_area("🎯 Task-force mission / scope",
-                       placeholder="e.g. Stand up a Microsoft Fabric data platform task force",height=80)
-    c1,c2=st.columns(2)
-    size=c1.slider("Team size",4,12,7)
-    lead_dir=c2.selectbox("Primary directorate (weighted)",
-                          ["Auto-detect"]+sorted(df["Directorate"].unique()))
-
-    if st.button("🛠️ Build Dream Team",type="primary") and scope:
+    if go and scope:
         primary=lead_dir
         if lead_dir=="Auto-detect":
-            kwm={"Information & Digital (IDD)":["fabric","data","cyber","it","digital","software","cloud","system","ai","analytics"],
+            kwm={"Information & Digital (IDD)":["fabric","data","cyber","it","digital","software","cloud","system","ai","analytics","power bi","report"],
                  "Finance":["finance","budget","cost","treasury","audit"],
                  "Supply Chain (CP)":["inventory","procure","contract","supplier","logistics","warehouse"],
                  "HSE":["safety","hse","environment","incident"],
@@ -558,25 +488,38 @@ elif "Dream" in page:
                 n=sum(1 for w in kws if w in s)
                 if n>bn:best,bn=dn,n
             primary=best or "Information & Digital (IDD)"
-
         d=df.copy()
-        d["Name"]=d["First Name"]+" "+d["Last Name"]
         d["teamwork"]=d["Big5 Agreeableness"]*.5+d["DISC Influence"]*.3+d["Big5 Conscientiousness"]*.2
-        d["fit"]=(d["perf"]*10+d["PDO Experience (yrs)"]*.8+d["Sadara_n"].fillna(60)*.4+d["teamwork"]*.3)
+        d["fit"]=d["perf"]*10+d["PDO Experience (yrs)"]*.8+d["Sadara_n"].fillna(60)*.4+d["teamwork"]*.3
         d.loc[d["Directorate"]==primary,"fit"]+=15
         npri=max(1,round(size*.5))
         team=pd.concat([d[d["Directorate"]==primary].nlargest(npri,"fit"),
-                        d[d["Directorate"]!=primary].nlargest(size-npri,"fit")]).sort_values("fit",ascending=False)
-        lead=team.iloc[0]
+                        d[d["Directorate"]!=primary].nlargest(size-npri,"fit")]).sort_values("fit",ascending=False).reset_index(drop=True)
+        lead=team.loc[0]
 
         st.success(f"Primary directorate **{primary}** · {size}-member cross-functional team assembled.")
-
-        # KPI band
         k=st.columns(4)
         kpi(k[0],"Team Lead",lead["Name"],lead["Current Job Title"])
         kpi(k[1],"Avg Sadara",f"{team['Sadara_n'].dropna().mean():.0f}" if team['Sadara_n'].notna().any() else "—","behaviour","alt2")
         kpi(k[2],"Avg PDO Exp",f"{team['PDO Experience (yrs)'].mean():.0f} yr","depth","alt")
         kpi(k[3],"Directorates",f"{team['Directorate'].nunique()}","cross-functional","alt3")
+
+        # ---- Team structure: lead on top, members below ----
+        st.markdown("<br>",unsafe_allow_html=True)
+        sec("🏗️ Team Structure")
+        lsada=f"{lead['Sadara_n']:.0f}" if pd.notna(lead['Sadara_n']) else "N/A"
+        html(f"""<div class="team-lead"><div class="n">👑 {lead['Name']}</div>
+        <div class="r">{lead['Current Job Title']} · {lead['Directorate']}</div>
+        <div class="r">IPF {lead['IPF 2026']} · Sadara {lsada} · {lead['PDO Experience (yrs)']}y</div></div>
+        <div class="connector"></div>""")
+        members=team.iloc[1:]
+        per=st.columns(min(4,max(1,len(members))))
+        for i,(_,m) in enumerate(members.iterrows()):
+            sada=f"{m['Sadara_n']:.0f}" if pd.notna(m['Sadara_n']) else "N/A"
+            per[i%len(per)].markdown(H(f"""<div class="member"><div class="n">{m['Name']}</div>
+            <div class="t">{m['Current Job Title']}<br>{m['Directorate']}</div>
+            <div class="m">🎖️ IPF {m['IPF 2026']} · 🤝 {sada} · 🧭 {m['PDO Experience (yrs)']}y</div></div>"""),
+            unsafe_allow_html=True)
 
         st.markdown("<br>",unsafe_allow_html=True)
         cc1,cc2=st.columns([1,1.1])
@@ -585,7 +528,7 @@ elif "Dream" in page:
             mix=team["Directorate"].value_counts().reset_index();mix.columns=["Directorate","n"]
             ch=alt.Chart(mix).mark_arc(innerRadius=55,cornerRadius=3).encode(
                 theta="n:Q",color=alt.Color("Directorate:N",scale=alt.Scale(range=GREEN_SCHEME),
-                legend=alt.Legend(orient="bottom",title=None)),tooltip=["Directorate","n"]).properties(height=290)
+                legend=alt.Legend(orient="bottom",title=None)),tooltip=["Directorate","n"]).properties(height=280)
             st.altair_chart(ch,use_container_width=True)
         with cc2:
             sec("⚖️ Member Fit & Behaviour")
@@ -596,112 +539,141 @@ elif "Dream" in page:
             ch=alt.Chart(melt).mark_bar(cornerRadiusEnd=4).encode(
                 x=alt.X("Score:Q"),y=alt.Y("Name:N",sort="-x",title=None),
                 color=alt.Color("Metric:N",scale=alt.Scale(range=[GREEN,LIME,GOLD]),legend=alt.Legend(orient="top",title=None)),
-                tooltip=["Name","Metric","Score"]).properties(height=290)
+                tooltip=["Name","Metric","Score"]).properties(height=280)
             st.altair_chart(ch,use_container_width=True)
 
-        # Member insight cards
         sec("👤 Member Insights")
         cols=st.columns(2)
         for i,(_,m) in enumerate(team.iterrows()):
-            role="👑 LEAD" if m["Name"]==lead["Name"] else "Member"
+            role="👑 LEAD" if i==0 else "Member"
             sada=f"{m['Sadara_n']:.0f}" if pd.notna(m['Sadara_n']) else "N/A"
-            with cols[i%2]:
-                st.markdown(f"""<div class="rowitem">
-                <b>{m['Name']}</b> <span class="pill g">{role}</span>
-                <span style="float:right;color:{SLATE};font-size:.8rem">{m['Directorate']}</span><br>
-                <span style="color:{SLATE};font-size:.85rem">{m['Current Job Title']} · {GLBL[str(m['Job Group'])]}</span><br>
-                <span style="font-size:.82rem">🎖️ IPF {m['IPF 2026']} · 🤝 Sadara {sada} · 🧭 {m['PDO Experience (yrs)']}y exp ·
-                💡 EQ {m['EQ']:.0f}</span></div>""",unsafe_allow_html=True)
+            cols[i%2].markdown(H(f"""<div class="rowitem"><b>{m['Name']}</b> <span class="pill g">{role}</span>
+            <span style="float:right;color:{SLATE};font-size:.78rem">{m['Directorate']}</span><br>
+            <span style="color:{SLATE};font-size:.82rem">{m['Current Job Title']} · {GLBL[str(m['Job Group'])]}</span><br>
+            <span style="font-size:.8rem">🎖️ IPF {m['IPF 2026']} · 🤝 Sadara {sada} · 🧭 {m['PDO Experience (yrs)']}y · 💡 EQ {m['EQ']:.0f}</span></div>"""),
+            unsafe_allow_html=True)
 
         if client:
             show=["Name","Directorate","Current Job Title","Job Group","IPF 2026","Sadara_n","PDO Experience (yrs)"]
-            out=ask("You are the PDO Dream Team builder. In <150 words, justify why THIS team succeeds: "
-                    "complementary strengths, cross-functional coverage, and why the named lead fits "
-                    "(cite Sadara, IPF, experience). Positive and concise. Do NOT list weaknesses or reasons "
-                    "it might fail. Synthetic data.",
+            out=ask("PDO Dream Team builder. <130 words: why THIS team succeeds (complementary strengths, "
+                    "cross-functional coverage). Positive only. Do NOT mention weaknesses or failure. Synthetic.",
                     f"Mission: {scope}\nLead: {lead['Name']}\nTeam:\n{team[show].to_json(orient='records')}")
             sec("💡 Why this team works")
-            st.markdown(f'<div class="card">{out}</div>',unsafe_allow_html=True)
+            html(f'<div class="card">{out}</div>')
+            out2=ask("PDO Dream Team builder. <70 words: why the named LEAD is the right leader for this mission "
+                     "(cite Sadara, IPF, experience). Positive, concise. Synthetic.",
+                     f"Mission: {scope}\nLead: {lead['Name']} · {lead['Current Job Title']} · "
+                     f"Sadara {lead['Sadara_n']} · IPF {lead['IPF 2026']} · {lead['PDO Experience (yrs)']}y")
+            sec("👑 Why this lead")
+            html(f'<div class="card">{out2}</div>')
 
 # =========================================================
 # PAGE 4 — TRAINING & UPSKILLING
 # =========================================================
 elif "Training" in page:
     header()
-    st.markdown(f"""<div class="card" style="border-left:5px solid {GREEN}">
-    <span style="font-size:1.05rem;color:{GREEN_DEEP};font-weight:700">🎓 Close capability gaps, faster.</span><br>
-    <span style="color:{SLATE}">A live view of where skills are thin across PDO, the training that will move
-    the needle most, and a tailored plan for any directorate.</span></div>""",unsafe_allow_html=True)
+    html(f'<div style="color:{SLATE};font-size:.95rem;margin:2px 0 8px 2px">🎓 <b>Close capability gaps, faster.</b> '
+         f'A live view of where PDO is thin, the training that moves the needle most, and the business outcome each unlocks.</div>')
 
-    # ---- PDO-WIDE (default, on top) ----
-    sec("🏢 PDO-Wide Training Priorities")
+    # ---- Derive capability per strategic THEME (not just competencies) ----
+    def theme_scores(frame):
+        n=len(frame) or 1
+        openness=frame["Big5 Openness"].mean(); learn=frame["HPI Learning Approach"].mean()
+        inquis=frame["HPI Inquisitive"].mean(); sadara=frame["Sadara_n"].dropna().mean() if frame["Sadara_n"].notna().any() else 60
+        readiness=frame["Readiness 1-2 yrs %"].mean()
+        # digital/AI proxy: IDD depth + openness + younger workforce
+        idd=frame[frame["Directorate"]=="Information & Digital (IDD)"]
+        idd_master=0
+        if len(idd):
+            h,_,_=comp_health(idd); idd_master=h
+        young=100-min(100,(frame["Age"].mean()-25)*3)
+        digital=np.clip(0.4*openness+0.3*(idd_master or 55)+0.3*young,10,95)
+        ai=np.clip(0.5*openness+0.3*young+0.2*inquis-6,8,92)
+        agile=np.clip(0.45*openness+0.35*learn+0.2*(100-frame["MVPI Tradition"].mean()),10,95)
+        data_an=np.clip(0.5*inquis+0.3*frame["Big5 Conscientiousness"].mean()+0.2*young,10,95)
+        commercial=np.clip(0.5*frame["MVPI Commerce"].mean()+0.3*frame["Big5 Conscientiousness"].mean()+0.2*readiness,10,95)
+        leadership=np.clip(0.5*(sadara)+0.5*readiness,10,95)
+        innovation=np.clip(0.5*openness+0.3*inquis+0.2*frame["MVPI Aesthetics"].mean(),10,95)
+        return {"AI & Automation":ai,"Digital Transformation":digital,"Agile Ways of Working":agile,
+                "Data & Analytics":data_an,"Commercial Acumen":commercial,
+                "Leadership & Succession":leadership,"Innovation & Design":innovation}
+
+    THEME_MAP={
+        "AI & Automation":("AI & Automation Academy (Copilot, ML foundations, use-case labs)",
+                           "Drives digital adoption & productivity; frees staff from manual work"),
+        "Digital Transformation":("Enterprise Digital Fluency & Change programme",
+                           "Accelerates transformation and cloud/data-platform adoption"),
+        "Agile Ways of Working":("Agile & Product Operating Model bootcamp",
+                           "Faster delivery, less rework, better cross-team flow"),
+        "Data & Analytics":("Data Literacy & Power BI mastery track",
+                           "Data-driven decisions and self-serve reporting at scale"),
+        "Commercial Acumen":("Commercial & Cost Leadership programme",
+                           "Sharper cost control and value from contracts/suppliers"),
+        "Leadership & Succession":("Leadership & Succession Academy (coaching, Ruwad)",
+                           "Builds the Director/Manager bench and reduces succession risk"),
+        "Innovation & Design":("Design Thinking & Innovation labs",
+                           "New solutions and continuous-improvement culture"),
+    }
+
+    org=theme_scores(df)
     health,gap,cnt=comp_health(df)
     k=st.columns(4)
-    kpi(k[0],"Org Competency Health",f"{health}/100","capability index")
-    kpi(k[1],"Capability Gap",f"{gap}%","at Knowledge level","alt")
+    kpi(k[0],"Org Capability Health",f"{health}/100","overall")
+    worst=min(org,key=org.get)
+    kpi(k[1],"Biggest Gap",worst,f"{org[worst]:.0f}% capability","alt")
     kpi(k[2],"Mastery Share",f"{cnt['Mastery']/sum(cnt.values())*100:.0f}%","deep expertise","alt2")
     kpi(k[3],"People in Scope",f"{len(df):,}","workforce","alt3")
 
     st.markdown("<br>",unsafe_allow_html=True)
-    # priority index per directorate (higher knowledge share => higher priority)
-    heat=[]
-    for dn in sorted(df["Directorate"].unique()):
-        sub=df[df["Directorate"]==dn]; c={"Knowledge":0,"Skill":0,"Mastery":0}
-        for cba in sub["Competence Based Assessment"]:
-            for part in str(cba).split(";"):
-                if ":" in part:
-                    lv=part.rsplit(":",1)[1].strip()
-                    if lv in c:c[lv]+=1
-        tot=sum(c.values()) or 1
-        heat.append({"Directorate":dn,"Priority":round(c["Knowledge"]/tot*100),
-                     "Mastery %":round(c["Mastery"]/tot*100),"Skill %":round(c["Skill"]/tot*100),
-                     "Knowledge %":round(c["Knowledge"]/tot*100)})
-    hdf=pd.DataFrame(heat).sort_values("Priority",ascending=False)
-
-    cc1,cc2=st.columns([1.1,1])
-    with cc1:
-        sec("🔥 Training Priority by Directorate")
-        ch=alt.Chart(hdf).mark_bar(cornerRadiusEnd=6).encode(
-            x=alt.X("Priority:Q",title="Priority index (Knowledge share %)"),
-            y=alt.Y("Directorate:N",sort="-x",title=None),
-            color=alt.Color("Priority:Q",scale=alt.Scale(range=[LIME,RED]),legend=None),
-            tooltip=["Directorate","Priority","Mastery %","Skill %","Knowledge %"])
+    sec("🏢 PDO-Wide Training Priorities — gap → training → outcome")
+    themes_sorted=sorted(org.items(),key=lambda x:x[1])  # lowest capability = top priority
+    cL,cR=st.columns([1,1.05])
+    with cL:
+        tdf=pd.DataFrame({"Theme":[t for t,_ in themes_sorted],
+                          "Capability":[round(v) for _,v in themes_sorted],
+                          "Gap":[round(100-v) for _,v in themes_sorted]})
+        ch=alt.Chart(tdf).mark_bar(cornerRadiusEnd=6).encode(
+            x=alt.X("Gap:Q",title="Training priority (capability gap %)"),
+            y=alt.Y("Theme:N",sort="-x",title=None),
+            color=alt.Color("Gap:Q",scale=alt.Scale(range=[LIME,RED]),legend=None),
+            tooltip=["Theme","Capability","Gap"])
         st.altair_chart(ch.properties(height=320),use_container_width=True)
-    with cc2:
-        sec("📚 Recommended Company Programmes")
-        progs=[("Digital Transformation & Data Fluency",GREEN),("Agile & Modern Ways of Working",LIME),
-               ("Leadership & Succession Academy",GOLD),("Commercial & Cost Acumen",GREEN),
-               ("Cyber Awareness (all staff)",SLATE)]
-        for p,cl in progs:
-            st.markdown(f"""<div class="rowitem" style="border-left-color:{cl}">
-            <b>{p}</b></div>""",unsafe_allow_html=True)
+    with cR:
+        for t,v in themes_sorted[:5]:
+            prog,outcome=THEME_MAP[t]
+            col=RED if v<45 else (GOLD if v<60 else GREEN)
+            html(f"""<div class="rowitem" style="border-left-color:{col}">
+            <b>{t}</b> <span style="float:right;font-weight:800;color:{col}">{v:.0f}% capable</span>
+            <div style="font-size:.82rem;margin-top:5px"><b>➜ Train:</b> {prog}</div>
+            <div style="font-size:.8rem;color:{SLATE};margin-top:2px"><b>✓ Outcome:</b> {outcome}</div></div>""")
 
     st.markdown("<br>",unsafe_allow_html=True)
-    # ---- Per-directorate filter ----
     sec("🎯 Drill Down by Directorate")
     dp=st.selectbox("Select a directorate",sorted(df["Directorate"].unique()))
-    row=hdf[hdf["Directorate"]==dp].iloc[0]
-    kk=st.columns(3)
-    kpi(kk[0],"Mastery",f"{row['Mastery %']}%","deep expertise","alt2")
-    kpi(kk[1],"Skill",f"{row['Skill %']}%","working capability","alt")
-    kpi(kk[2],"Knowledge (gap)",f"{row['Knowledge %']}%","needs upskilling")
+    sub=df[df["Directorate"]==dp]
+    dorg=theme_scores(sub)
+    dsorted=sorted(dorg.items(),key=lambda x:x[1])
+    html(f'<div style="color:{SLATE};font-size:.86rem;margin-bottom:6px">Top 3 upskilling priorities for <b>{dp}</b> '
+         f'(lowest capability first):</div>')
+    cc=st.columns(3)
+    for i,(t,v) in enumerate(dsorted[:3]):
+        prog,outcome=THEME_MAP[t]; col=RED if v<45 else (GOLD if v<60 else GREEN)
+        cc[i].markdown(H(f"""<div class="kpi" style="border-top-color:{col}">
+        <div class="lbl">Priority {i+1}</div><div class="val" style="font-size:1.1rem">{t}</div>
+        <div class="sub">{v:.0f}% capability · train: {prog.split('(')[0]}</div></div>"""),unsafe_allow_html=True)
 
     st.markdown("<br>",unsafe_allow_html=True)
-    melt=hdf[hdf["Directorate"]==dp].melt(id_vars="Directorate",
-          value_vars=["Mastery %","Skill %","Knowledge %"],var_name="Level",value_name="pct")
-    ch=alt.Chart(melt).mark_bar(cornerRadiusEnd=6).encode(
-        x=alt.X("pct:Q",title="% of competency ratings"),
-        y=alt.Y("Level:N",title=None,sort=["Mastery %","Skill %","Knowledge %"]),
-        color=alt.Color("Level:N",scale=alt.Scale(domain=["Mastery %","Skill %","Knowledge %"],
-                        range=[GREEN,GOLD,RED]),legend=None),
-        tooltip=["Level","pct"]).properties(height=180)
+    ddf=pd.DataFrame({"Theme":list(dorg.keys()),"Capability":[round(v) for v in dorg.values()]})
+    ch=alt.Chart(ddf).mark_bar(cornerRadiusEnd=6).encode(
+        x=alt.X("Capability:Q",scale=alt.Scale(domain=[0,100]),title="Capability %"),
+        y=alt.Y("Theme:N",sort="-x",title=None),
+        color=alt.Color("Capability:Q",scale=alt.Scale(domain=[30,60,90],range=[RED,GOLD,GREEN]),legend=None),
+        tooltip=["Theme","Capability"]).properties(height=260)
     st.altair_chart(ch,use_container_width=True)
 
     if client and st.button(f"🧠 AI upskilling plan for {dp}"):
-        sub=df[df["Directorate"]==dp]
-        out=ask("You are a PDO L&D advisor. Propose a focused 12-month upskilling plan for this directorate: "
-                "4-6 priority competencies, specific programmes/certifications, and quick wins. "
-                "Use short bullet lines, <240 words. Synthetic data.",
-                f"Directorate: {dp}\nDepth: {row.to_dict()}\n"
-                f"Framework: {sub['Competence Based Assessment'].iloc[0]}")
-        st.markdown(f'<div class="card">{out}</div>',unsafe_allow_html=True)
+        out=ask("PDO L&D advisor. 12-month upskilling plan for the directorate based on its theme gaps. "
+                "For each of the top 3 gap themes give: the programme, who to enrol, and the business outcome. "
+                "Short bullet lines, <220 words. Synthetic.",
+                f"Directorate: {dp}\nTheme capabilities: {dorg}")
+        html(f'<div class="card">{out}</div>')
