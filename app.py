@@ -574,30 +574,48 @@ elif "Dream" in page:
     go=st.button("🛠️ Build Dream Team",type="primary")
 
     if go and scope:
+        s=scope.lower()
+        # word-boundary keyword matcher (fixes "ai" matching inside "chain")
+        def has(word): return re.search(r"\b"+re.escape(word)+r"\b", s) is not None
         primary=lead_dir
         if lead_dir=="Auto-detect":
-            kwm={"Information & Digital (IDD)":["fabric","data","cyber","it","digital","software","cloud","system","ai","analytics","power bi","report"],
-                 "Finance":["finance","budget","cost","treasury","audit"],
-                 "Supply Chain (CP)":["inventory","procure","contract","supplier","logistics","warehouse"],
-                 "HSE":["safety","hse","environment","incident"],
-                 "Engineering & Projects":["project","engineering","design","construction","well"],
-                 "Operations":["production","operations","reservoir","maintenance"],
-                 "People & Culture (HR)":["hr","talent","training","people","recruit"]}
-            s=scope.lower();best=None;bn=0
+            kwm={"Supply Chain (CP)":["supply","chain","procurement","procure","sourcing","supplier","logistics","inventory","warehouse","contract","contracts","category","tender","vendor"],
+                 "Information & Digital (IDD)":["fabric","data","cyber","digital","software","cloud","system","analytics","ai","it","power bi","report","application"],
+                 "Finance":["finance","budget","cost","treasury","audit","accounting"],
+                 "HSE":["safety","hse","environment","incident","emergency"],
+                 "Engineering & Projects":["project","engineering","design","construction","well","projects"],
+                 "Operations":["production","operations","reservoir","maintenance","asset"],
+                 "People & Culture (HR)":["hr","talent","training","recruit","learning","workforce"],
+                 "Exploration":["exploration","subsurface","seismic","geoscience","petrophysics"],
+                 "Legal & Corporate":["legal","compliance","governance","regulatory"]}
+            best=None;bn=0
             for dn,kws in kwm.items():
-                n=sum(1 for w in kws if w in s)
+                n=sum(1 for w in kws if has(w))
                 if n>bn:best,bn=dn,n
             primary=best or "Information & Digital (IDD)"
+
         d=df.copy()
+        # ---- CONTENT RELEVANCE: does this person actually work in this domain? ----
+        kws=[w for w in re.findall(r"[a-z]+",s) if len(w)>3 and w not in
+             {"team","build","want","process","enhancement","improve","improvement","create","need","help","with","that","this","have","from","across","best","people","member","members","task","force","group","project"}]
+        d["dtext"]=(d["Directorate"]+" "+d["Parent Function"]+" "+d["Current Job Title"]+" "+
+                    d["Competence Based Assessment"]+" "+d["Trainings Completed"]).str.lower()
+        d["relevance"]=d["dtext"].apply(lambda t:sum(1 for k in kws if k in t)) if kws else 0
+
         d["teamwork"]=d["Big5 Agreeableness"]*.5+d["DISC Influence"]*.3+d["Big5 Conscientiousness"]*.2
-        d["fit"]=d["perf"]*10+d["PDO Experience (yrs)"]*.8+d["Sadara_n"].fillna(60)*.4+d["teamwork"]*.3
-        d.loc[d["Directorate"]==primary,"fit"]+=15
-        npri=max(1,round(size*.5))
-        team=pd.concat([d[d["Directorate"]==primary].nlargest(npri,"fit"),
-                        d[d["Directorate"]!=primary].nlargest(size-npri,"fit")]).sort_values("fit",ascending=False).reset_index(drop=True)
+        d["fit"]=(d["relevance"]*14 + d["perf"]*8 + d["PDO Experience (yrs)"]*.8 +
+                  d["Sadara_n"].fillna(60)*.4 + d["teamwork"]*.3)
+        d.loc[d["Directorate"]==primary,"fit"]+=20   # domain experts lead the core
+
+        # Core = ~60% from the primary (domain) directorate; rest cross-functional
+        npri=max(2,round(size*.6))
+        core=d[d["Directorate"]==primary].nlargest(min(npri,size),"fit")
+        others=d[d["Directorate"]!=primary].nlargest(size-len(core),"fit")
+        team=pd.concat([core,others]).sort_values("fit",ascending=False).reset_index(drop=True)
         lead=team.loc[0]
 
-        st.success(f"Primary directorate **{primary}** · {size}-member cross-functional team assembled.")
+        st.success(f"🎯 Domain: **{primary}** · {len(core)} core domain experts + "
+                   f"{len(team)-len(core)} cross-functional · {size}-member team assembled.")
         k=st.columns(4)
         kpi(k[0],"Team Lead",lead["Name"],lead["Current Job Title"])
         kpi(k[1],"Avg Sadara",f"{team['Sadara_n'].dropna().mean():.0f}" if team['Sadara_n'].notna().any() else "—","behaviour","alt2")
