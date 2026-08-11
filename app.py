@@ -30,7 +30,17 @@ def html(s): st.markdown(H(s), unsafe_allow_html=True)
 # =========================================================
 html(f"""
 <style>
-#MainMenu, header[data-testid="stHeader"], footer {{visibility:hidden;}}
+#MainMenu, footer {{visibility:hidden;}}
+/* keep header area but make it transparent so the sidebar expand arrow stays visible */
+header[data-testid="stHeader"] {{ background:transparent; height:0; }}
+/* ALWAYS show the control that re-opens a collapsed sidebar */
+[data-testid="stSidebarCollapsedControl"], [data-testid="collapsedControl"] {{
+  visibility:visible !important; opacity:1 !important; display:flex !important;
+  z-index:1000000 !important; }}
+[data-testid="stSidebarCollapsedControl"] button, [data-testid="collapsedControl"] button {{
+  background:{GREEN} !important; color:#fff !important; border-radius:8px !important; }}
+[data-testid="stSidebarCollapsedControl"] svg, [data-testid="collapsedControl"] svg {{
+  color:#fff !important; fill:#fff !important; }}
 .stApp {{ background:#EDF2EE; }}
 .block-container {{ padding-top:0.6rem; padding-bottom:2rem; max-width:1500px; }}
 .wih-header {{ background:linear-gradient(100deg,{GREEN_DEEP} 0%,{GREEN_DARK} 45%,{GREEN} 100%);
