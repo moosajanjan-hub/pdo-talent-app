@@ -1,7 +1,7 @@
 """
 Workforce Intelligence Hub — PDO (synthetic data)
 Corporate PowerBI/PowerApps style, green PDO theme.
-Pages: Executive Summary | Talent Profile | Dream Team | Training & Upskilling
+Pages: Executive Summary | Talent Profile | Dream Team
 ALL DATA SYNTHETIC.
 """
 import os, json, re
@@ -210,7 +210,7 @@ def ask(system,user,mx=1200):
 st.sidebar.markdown(H(f"""<div class="sb-brand">{LOGO}
 <h3>Workforce Intelligence</h3><span>PDO Talent Hub</span></div>"""),unsafe_allow_html=True)
 page=st.sidebar.radio("nav",["📊  Executive Summary","🎯  Talent Profile",
-                             "🤝  Dream Team","🎓  Training & Upskilling"],label_visibility="collapsed")
+                             "🤝  Dream Team"],label_visibility="collapsed")
 st.sidebar.markdown("<br>",unsafe_allow_html=True)
 if client:
     st.sidebar.success("🟢 AI Advisor connected")
@@ -684,114 +684,3 @@ elif "Dream" in page:
                      f"Sadara {lead['Sadara_n']} · IPF {lead['IPF 2026']} · {lead['PDO Experience (yrs)']}y")
             sec("👑 Why this lead")
             html(f'<div class="card">{out2}</div>')
-
-# =========================================================
-# PAGE 4 — TRAINING & UPSKILLING
-# =========================================================
-elif "Training" in page:
-    header()
-    html(f'<div style="color:{SLATE};font-size:.95rem;margin:2px 0 8px 2px">🎓 <b>Close capability gaps, faster.</b> '
-         f'A live view of where PDO is thin, the training that moves the needle most, and the business outcome each unlocks.</div>')
-
-    # ---- Derive capability per strategic THEME (not just competencies) ----
-    def theme_scores(frame):
-        n=len(frame) or 1
-        openness=frame["Big5 Openness"].mean(); learn=frame["HPI Learning Approach"].mean()
-        inquis=frame["HPI Inquisitive"].mean(); sadara=frame["Sadara_n"].dropna().mean() if frame["Sadara_n"].notna().any() else 60
-        readiness=frame["Readiness 1-2 yrs %"].mean()
-        # digital/AI proxy: IDD depth + openness + younger workforce
-        idd=frame[frame["Directorate"]=="Information & Digital (IDD)"]
-        idd_master=0
-        if len(idd):
-            h,_,_=comp_health(idd); idd_master=h
-        young=100-min(100,(frame["Age"].mean()-25)*3)
-        digital=np.clip(0.4*openness+0.3*(idd_master or 55)+0.3*young,10,95)
-        ai=np.clip(0.5*openness+0.3*young+0.2*inquis-6,8,92)
-        agile=np.clip(0.45*openness+0.35*learn+0.2*(100-frame["MVPI Tradition"].mean()),10,95)
-        data_an=np.clip(0.5*inquis+0.3*frame["Big5 Conscientiousness"].mean()+0.2*young,10,95)
-        commercial=np.clip(0.5*frame["MVPI Commerce"].mean()+0.3*frame["Big5 Conscientiousness"].mean()+0.2*readiness,10,95)
-        leadership=np.clip(0.5*(sadara)+0.5*readiness,10,95)
-        innovation=np.clip(0.5*openness+0.3*inquis+0.2*frame["MVPI Aesthetics"].mean(),10,95)
-        return {"AI & Automation":ai,"Digital Transformation":digital,"Agile Ways of Working":agile,
-                "Data & Analytics":data_an,"Commercial Acumen":commercial,
-                "Leadership & Succession":leadership,"Innovation & Design":innovation}
-
-    THEME_MAP={
-        "AI & Automation":("AI & Automation Academy (Copilot, ML foundations, use-case labs)",
-                           "Drives digital adoption & productivity; frees staff from manual work"),
-        "Digital Transformation":("Enterprise Digital Fluency & Change programme",
-                           "Accelerates transformation and cloud/data-platform adoption"),
-        "Agile Ways of Working":("Agile & Product Operating Model bootcamp",
-                           "Faster delivery, less rework, better cross-team flow"),
-        "Data & Analytics":("Data Literacy & Power BI mastery track",
-                           "Data-driven decisions and self-serve reporting at scale"),
-        "Commercial Acumen":("Commercial & Cost Leadership programme",
-                           "Sharper cost control and value from contracts/suppliers"),
-        "Leadership & Succession":("Leadership & Succession Academy (coaching, Ruwad)",
-                           "Builds the Director/Manager bench and reduces succession risk"),
-        "Innovation & Design":("Design Thinking & Innovation labs",
-                           "New solutions and continuous-improvement culture"),
-    }
-
-    org=theme_scores(df)
-    health,gap,cnt=comp_health(df)
-    k=st.columns(4)
-    kpi(k[0],"Org Capability Health",f"{health}/100","overall")
-    worst=min(org,key=org.get)
-    kpi(k[1],"Biggest Gap",worst,f"{org[worst]:.0f}% capability","alt")
-    kpi(k[2],"Mastery Share",f"{cnt['Mastery']/sum(cnt.values())*100:.0f}%","deep expertise","alt2")
-    kpi(k[3],"People in Scope",f"{len(df):,}","workforce","alt3")
-
-    st.markdown("<br>",unsafe_allow_html=True)
-    sec("🏢 PDO-Wide Training Priorities — gap → training → outcome")
-    themes_sorted=sorted(org.items(),key=lambda x:x[1])  # lowest capability = top priority
-    cL,cR=st.columns([1,1.05])
-    with cL:
-        tdf=pd.DataFrame({"Theme":[t for t,_ in themes_sorted],
-                          "Capability":[round(v) for _,v in themes_sorted],
-                          "Gap":[round(100-v) for _,v in themes_sorted]})
-        ch=alt.Chart(tdf).mark_bar(cornerRadiusEnd=6).encode(
-            x=alt.X("Gap:Q",title="Training priority (capability gap %)"),
-            y=alt.Y("Theme:N",sort="-x",title=None),
-            color=alt.Color("Gap:Q",scale=alt.Scale(range=[LIME,RED]),legend=None),
-            tooltip=["Theme","Capability","Gap"])
-        st.altair_chart(ch.properties(height=320),use_container_width=True)
-    with cR:
-        for t,v in themes_sorted[:5]:
-            prog,outcome=THEME_MAP[t]
-            col=RED if v<45 else (GOLD if v<60 else GREEN)
-            html(f"""<div class="rowitem" style="border-left-color:{col}">
-            <b>{t}</b> <span style="float:right;font-weight:800;color:{col}">{v:.0f}% capable</span>
-            <div style="font-size:.82rem;margin-top:5px"><b>➜ Train:</b> {prog}</div>
-            <div style="font-size:.8rem;color:{SLATE};margin-top:2px"><b>✓ Outcome:</b> {outcome}</div></div>""")
-
-    st.markdown("<br>",unsafe_allow_html=True)
-    sec("🎯 Drill Down by Directorate")
-    dp=st.selectbox("Select a directorate",sorted(df["Directorate"].unique()))
-    sub=df[df["Directorate"]==dp]
-    dorg=theme_scores(sub)
-    dsorted=sorted(dorg.items(),key=lambda x:x[1])
-    html(f'<div style="color:{SLATE};font-size:.86rem;margin-bottom:6px">Top 3 upskilling priorities for <b>{dp}</b> '
-         f'(lowest capability first):</div>')
-    cc=st.columns(3)
-    for i,(t,v) in enumerate(dsorted[:3]):
-        prog,outcome=THEME_MAP[t]; col=RED if v<45 else (GOLD if v<60 else GREEN)
-        cc[i].markdown(H(f"""<div class="kpi" style="border-top-color:{col}">
-        <div class="lbl">Priority {i+1}</div><div class="val" style="font-size:1.1rem">{t}</div>
-        <div class="sub">{v:.0f}% capability · train: {prog.split('(')[0]}</div></div>"""),unsafe_allow_html=True)
-
-    st.markdown("<br>",unsafe_allow_html=True)
-    ddf=pd.DataFrame({"Theme":list(dorg.keys()),"Capability":[round(v) for v in dorg.values()]})
-    ch=alt.Chart(ddf).mark_bar(cornerRadiusEnd=6).encode(
-        x=alt.X("Capability:Q",scale=alt.Scale(domain=[0,100]),title="Capability %"),
-        y=alt.Y("Theme:N",sort="-x",title=None),
-        color=alt.Color("Capability:Q",scale=alt.Scale(domain=[30,60,90],range=[RED,GOLD,GREEN]),legend=None),
-        tooltip=["Theme","Capability"]).properties(height=260)
-    st.altair_chart(ch,use_container_width=True)
-
-    if client and st.button(f"🧠 AI upskilling plan for {dp}"):
-        out=ask("PDO L&D advisor. 12-month upskilling plan for the directorate based on its theme gaps. "
-                "For each of the top 3 gap themes give: the programme, who to enrol, and the business outcome. "
-                "Short bullet lines, <220 words. Synthetic.",
-                f"Directorate: {dp}\nTheme capabilities: {dorg}")
-        html(f'<div class="card">{out}</div>')
