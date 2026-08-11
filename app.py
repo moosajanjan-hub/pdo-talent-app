@@ -355,37 +355,70 @@ elif "Talent" in page:
     topn=c3.slider("👥 Candidates to compare",3,10,6)
     go=st.button("🚀 Find best-fit talent",type="primary")
 
-    TARGET_RULES=[("executive director",{"primary":["Director"],"exc":["1"]}),
-        ("director",{"primary":["1"],"exc":["2"]}),("senior manager",{"primary":["2"],"exc":["3"]}),
-        ("head",{"primary":["3"],"exc":["4"]}),("manager",{"primary":["2"],"exc":["3"]}),
-        ("team lead",{"primary":["4"],"exc":["5"]}),("lead",{"primary":["4"],"exc":["5"]}),
-        ("senior",{"primary":["5"],"exc":["6"]})]
+    # Target role -> eligible feeder groups (who can realistically fill it)
+    # Longest phrases first so "senior manager"/"team lead" match before "manager"/"lead".
+    TARGET_RULES=[("executive director",["Director"]),
+        ("senior manager",["1","2"]),("team lead",["3","4"]),
+        ("director",["1"]),            # Director drawn ONLY from G1 Managers
+        ("manager",["1","2"]),
+        ("head",["2","3"]),
+        ("lead",["3","4"]),            # Lead (G3) drawn from G3 + G4
+        ("senior",["4","5"]),
+        ("officer",["5","6"])]
+
+    # words to ignore when extracting the *subject* of the search
+    STOP=set(("best successor succession for with without strong the a an to and or of who whom "
+              "person people talent talents candidate candidates find need needs looking role roles "
+              "position positions director manager head lead leader senior officer graduate executive "
+              "leadership capable fit good great top someone our new next in on at as be is are i want "
+              "please show me who能 someone experienced experience skills skill able ready readiness").split())
+    def keywords(text):
+        return [t for t in re.findall(r"[a-z]+",text.lower()) if t not in STOP and len(t)>2]
 
     if go and q:
         ql=q.lower(); rule=None; tname="role"
-        for key,r in TARGET_RULES:
-            if key in ql: rule=r; tname=key.title(); break
+        for key,groups in TARGET_RULES:
+            if key in ql: rule=groups; tname=key.title(); break
+
         d=df.copy()
         if fdir!="All (whole org)": d=d[d["Directorate"]==fdir]
-        if rule:
-            d=d[d["Job Group"].astype(str).isin(rule["primary"]+rule["exc"])]
+        # HIERARCHY: hard-filter to eligible feeder groups
+        if rule: d=d[d["Job Group"].astype(str).isin(rule)]
         d=d.copy()
+
+        # ---- CONTENT RELEVANCE: actually search what the user typed ----
+        d["stext"]=(d["Directorate"]+" "+d["Parent Function"]+" "+d["Current Job Title"]+" "+
+                    d["Competence Based Assessment"]+" "+d["Trainings Completed"]+" "+
+                    d["Degree"]+" "+d["Certificates"]).str.lower()
+        kws=keywords(q)
+        if kws:
+            d["relevance"]=d["stext"].apply(lambda t:sum(t.count(k) for k in kws))
+        else:
+            d["relevance"]=0
+
         d["Ready%"]=d["Readiness 1-2 yrs %"].fillna(0)
-        d["fitraw"]=(d["perf"]*10+d["Ready%"]*.5+d["Sadara_n"].fillna(60)*.2+d["S360"].fillna(65)*.15+d["EQ"].fillna(55)*.1)
-        if rule:
-            d.loc[d["Job Group"].astype(str).isin(rule["primary"]),"fitraw"]+=40
-            exc=d["Job Group"].astype(str).isin(rule["exc"])
-            d.loc[exc&(d["perf"]<3),"fitraw"]-=60
-        d=d.sort_values("fitraw",ascending=False).head(topn).reset_index(drop=True)
+        quality=(d["perf"]*10+d["Ready%"]*.5+d["Sadara_n"].fillna(60)*.2+
+                 d["S360"].fillna(65)*.15+d["EQ"].fillna(55)*.1)
+        # relevance dominates so different searches -> different people; quality breaks ties
+        d["fitraw"]=d["relevance"]*30 + quality
+
+        # if the query had a clear subject but NOBODY matched, tell the user (don't fake it)
+        matched=int((d["relevance"]>0).sum()) if kws else len(d)
+
+        d=d.sort_values(["relevance","fitraw"],ascending=False).head(topn).reset_index(drop=True)
+        # Match% blends relevance fit + quality, scaled 72-99
         lo,hi=d["fitraw"].min(),d["fitraw"].max()
-        d["Match"]=((d["fitraw"]-lo)/(hi-lo+1e-9)*24+75).round(0)  # 75-99 range
-        d.loc[0,"Match"]=max(d.loc[0,"Match"],96)
+        d["Match"]=((d["fitraw"]-lo)/(hi-lo+1e-9)*26+72).round(0)
+        d.loc[0,"Match"]=max(d.loc[0,"Match"],95)
 
         if rule:
-            st.info(f"Hierarchy applied — **{tname}** candidates come from "
-                    f"**{', '.join(GLBL[g] for g in rule['primary'])}**"
-                    f"{' (exceptionally '+', '.join(GLBL[g] for g in rule['exc'])+')' if rule['exc'] else ''}.")
-        st.success(f"Scanned the workforce · top **{len(d)}** matches for *{q}*.")
+            st.info(f"🔎 **{tname}** roles are filled from **{', '.join(GLBL[g] for g in rule)}** — "
+                    f"searching those groups across the whole organisation for *{', '.join(kws) or 'best fit'}*.")
+        if kws and matched==0:
+            st.warning(f"No profiles closely match “{' '.join(kws)}”. Showing the strongest available in the "
+                       f"eligible group(s) instead — try different keywords or a directorate filter.")
+        else:
+            st.success(f"Scanned the workforce · **{matched}** relevant profiles found · showing top **{len(d)}** for *{q}*.")
 
         # ---- 1) Candidate list with match % ----
         sec("📋 Potential Candidates (ranked by match)")
