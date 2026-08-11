@@ -211,6 +211,9 @@ st.sidebar.markdown(H(f"""<div class="sb-brand">{LOGO}
 <h3>Workforce Intelligence</h3><span>PDO Talent Hub</span></div>"""),unsafe_allow_html=True)
 page=st.sidebar.radio("nav",["📊  Executive Summary","🎯  Talent Profile",
                              "🤝  Dream Team","🗂️  Source File – DB"],label_visibility="collapsed")
+st.sidebar.markdown(
+    "<div style='font-size:0.72rem;color:#BFE6CC;margin:-4px 4px 0 6px;font-style:italic'>"
+    "Simulation data · source file for reference</div>", unsafe_allow_html=True)
 st.sidebar.markdown("<br>",unsafe_allow_html=True)
 if client:
     st.sidebar.success("🟢 AI Advisor connected")
