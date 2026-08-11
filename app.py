@@ -210,7 +210,7 @@ def ask(system,user,mx=1200):
 st.sidebar.markdown(H(f"""<div class="sb-brand">{LOGO}
 <h3>Workforce Intelligence</h3><span>PDO Talent Hub</span></div>"""),unsafe_allow_html=True)
 page=st.sidebar.radio("nav",["📊  Executive Summary","🎯  Talent Profile",
-                             "🤝  Dream Team"],label_visibility="collapsed")
+                             "🤝  Dream Team","🗂️  Source File – DB"],label_visibility="collapsed")
 st.sidebar.markdown("<br>",unsafe_allow_html=True)
 if client:
     st.sidebar.success("🟢 AI Advisor connected")
@@ -684,3 +684,66 @@ elif "Dream" in page:
                      f"Sadara {lead['Sadara_n']} · IPF {lead['IPF 2026']} · {lead['PDO Experience (yrs)']}y")
             sec("👑 Why this lead")
             html(f'<div class="card">{out2}</div>')
+
+# =========================================================
+# PAGE 4 — SOURCE FILE / DATABASE (full 11k visibility)
+# =========================================================
+elif "Source File" in page:
+    header()
+    html(f'<div style="color:{SLATE};font-size:.95rem;margin:2px 0 8px 2px">🗂️ <b>Source data — full workforce database.</b> '
+         f'The complete set of <b>{len(df):,}</b> synthetic employee records powering this Hub. Search, filter, sort and export for full transparency.</div>')
+
+    # KPI strip
+    k=st.columns(4)
+    kpi(k[0],"Total Records",f"{len(df):,}","employees")
+    kpi(k[1],"Data Fields",f"{df.shape[1]}","columns","alt")
+    kpi(k[2],"Directorates",f"{df['Directorate'].nunique()}","business areas","alt2")
+    kpi(k[3],"Data Source","CSV","phase 1 (DB-ready)","alt3")
+
+    st.markdown("<br>",unsafe_allow_html=True)
+    # Filters
+    sec("🔎 Search & Filter")
+    c1,c2,c3=st.columns([1.4,1,1])
+    txt=c1.text_input("Search by name, job title, competency, degree…","")
+    fdir=c2.multiselect("Directorate",sorted(df["Directorate"].unique()))
+    fgrp=c3.multiselect("Job Group",GROUP_ORDER,format_func=lambda g:GLBL[g])
+
+    view=df.copy()
+    if fdir: view=view[view["Directorate"].isin(fdir)]
+    if fgrp: view=view[view["Job Group"].astype(str).isin(fgrp)]
+    if txt:
+        t=txt.lower()
+        cols_search=["First Name","Last Name","Current Job Title","Directorate","Parent Function",
+                     "Competence Based Assessment","Degree","Certificates","Trainings Completed"]
+        mask=view[cols_search].apply(lambda r:t in " ".join(map(str,r.values)).lower(),axis=1)
+        view=view[mask]
+
+    st.caption(f"Showing **{len(view):,}** of {len(df):,} records.")
+    # Drop helper columns created at load-time so the raw source is shown
+    hide=["JoinYear","Readiness 1-2 yrs %","Readiness 3 yrs %","Readiness 5 yrs %",
+          "Sadara_n","S360","EQ","perf","Name","stext","dtext","relevance"]
+    show=[c for c in df.columns if c not in hide]
+    st.dataframe(view[show],hide_index=True,use_container_width=True,height=560)
+
+    st.download_button("⬇️ Download filtered data (CSV)",
+                       view[show].to_csv(index=False).encode("utf-8"),
+                       "pdo_workforce_data.csv","text/csv")
+
+    # Individual record viewer
+    st.markdown("<br>",unsafe_allow_html=True)
+    sec("👤 Inspect a single record")
+    if len(view):
+        opts=(view["First Name"]+" "+view["Last Name"]+"  ·  "+view["Current Job Title"]+
+              "  ·  #"+view["Company Number"].astype(str)).tolist()
+        pick=st.selectbox("Select an employee",opts)
+        num=int(pick.split("#")[-1])
+        person=df[df["Company Number"]==num].iloc[0]
+        cc=st.columns(4)
+        kpi(cc[0],"Name",f"{person['First Name']} {person['Last Name']}",person['Nationality'])
+        kpi(cc[1],"Role",person['Current Job Title'][:22],GLBL[str(person['Job Group'])],"alt")
+        kpi(cc[2],"Directorate",person['Directorate'][:20],person['Parent Function'],"alt2")
+        kpi(cc[3],"PDO Exp",f"{person['PDO Experience (yrs)']} yr",f"joined {person['Date Joined PDO'][:4]}","alt3")
+        with st.expander("📄 Full profile — all fields",expanded=True):
+            rec=person[show].to_dict()
+            st.dataframe(pd.DataFrame({"Field":list(rec.keys()),"Value":[str(v) for v in rec.values()]}),
+                         hide_index=True,use_container_width=True,height=430)
