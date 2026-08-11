@@ -99,6 +99,36 @@ div[data-testid="stMetric"] {{ background:#fff; border-radius:12px; padding:12px
 .member .t {{ color:{SLATE}; font-size:.76rem; }}
 .member .m {{ font-size:.76rem; margin-top:4px;}}
 .gcap {{ text-align:center; color:{SLATE}; font-size:.82rem; font-weight:700; margin-top:-8px;}}
+/* directorate switch strip inside header zone */
+.dirstrip {{ background:linear-gradient(90deg,{GREEN_DARK},{GREEN}); border-radius:14px;
+ padding:10px 20px; margin:-8px 0 16px 0; display:flex; align-items:center; gap:14px;
+ box-shadow:0 4px 14px rgba(0,90,43,.22);}}
+.dirstrip .lab {{ color:#fff; font-weight:800; font-size:1rem; white-space:nowrap;}}
+.dirstrip-note {{ color:{GOLD}; font-weight:700; }}
+/* make the directorate selectbox pop (gold/white) */
+div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {{
+ background:#FFFDF5 !important; border:2px solid {GOLD} !important; border-radius:10px !important;
+ font-weight:700; color:{GREEN_DEEP} !important; }}
+/* status cards (bigger, headcount-style) */
+.statuscard {{ background:#fff; border-radius:16px; padding:18px 20px; min-height:150px;
+ box-shadow:0 3px 14px rgba(16,40,30,.1); border-top:6px solid {GREEN};
+ display:flex; flex-direction:column; justify-content:space-between; }}
+.statuscard .sv {{ font-size:2.4rem; font-weight:800; line-height:1; }}
+.statuscard .sl {{ color:{SLATE}; font-size:.82rem; font-weight:700; text-transform:uppercase; letter-spacing:.4px; margin-top:8px;}}
+.statuscard .sd {{ color:#8A97A6; font-size:.74rem; margin-top:2px;}}
+.statuscard .track {{ background:#EEF3F0; border-radius:8px; height:12px; margin-top:12px; overflow:hidden;}}
+.statuscard .fill {{ height:12px; border-radius:8px; }}
+/* nat/gender clean bars */
+.ngrow {{ display:flex; align-items:center; gap:10px; margin:8px 0;}}
+.ngrow .cap {{ width:90px; font-size:.82rem; font-weight:700; color:{GREEN_DEEP};}}
+.ngrow .track {{ flex:1; background:#EEF3F0; border-radius:8px; height:22px; position:relative; overflow:hidden;}}
+.ngrow .fill {{ height:22px; border-radius:8px; display:flex; align-items:center; justify-content:flex-end;
+ padding-right:8px; color:#fff; font-size:.76rem; font-weight:800;}}
+/* team connectors */
+.tconnect-v {{ width:3px; height:26px; background:{GREEN}; margin:2px auto; opacity:.6; border-radius:2px;}}
+.tconnect-h {{ height:3px; background:{GREEN}; opacity:.4; border-radius:2px; margin:0 auto 4px auto;}}
+.tdot {{ width:11px; height:11px; background:{GREEN}; border-radius:50%; margin:0 auto 2px auto;
+ box-shadow:0 0 0 3px rgba(0,132,61,.18);}}
 </style>
 """)
 
@@ -119,6 +149,16 @@ def kpi(col,label,value,sub="",cls=""):
     <div class="val">{value}</div><div class="sub">{sub}</div></div>"""),unsafe_allow_html=True)
 
 def sec(t): html(f'<div class="sec">{t}</div>')
+
+def statuscard(col,label,val,good_high,sub=""):
+    v=float(val)
+    if good_high: color=GREEN if v>=75 else (GOLD if v>=55 else RED)
+    else:         color=RED if v>=66 else (GOLD if v>=40 else GREEN)
+    col.markdown(H(f"""<div class="statuscard" style="border-top-color:{color}">
+    <div><div class="sv" style="color:{color}">{v:.0f}%</div>
+    <div class="sl">{label}</div><div class="sd">{sub}</div></div>
+    <div class="track"><div class="fill" style="background:{color};width:{max(3,min(100,v))}%"></div></div>
+    </div>"""),unsafe_allow_html=True)
 
 def barrow(col_or_st,label,val,color,right=""):
     col_or_st.markdown(H(f"""<div class="rowitem" style="border-left-color:{color}">
@@ -210,7 +250,8 @@ def ask(system,user,mx=1200):
 st.sidebar.markdown(H(f"""<div class="sb-brand">{LOGO}
 <h3>Workforce Intelligence</h3><span>PDO Talent Hub</span></div>"""),unsafe_allow_html=True)
 page=st.sidebar.radio("nav",["📊  Executive Summary","🎯  Talent Profile",
-                             "🤝  Dream Team","🗂️  Source File – DB"],label_visibility="collapsed")
+                             "🤝  Dream Team","👤  Individual Profile",
+                             "🗂️  Source File – DB"],label_visibility="collapsed")
 st.sidebar.markdown(
     "<div style='font-size:0.72rem;color:#BFE6CC;margin:-4px 4px 0 6px;font-style:italic'>"
     "Simulation data · source file for reference</div>", unsafe_allow_html=True)
@@ -225,14 +266,14 @@ else:
 # =========================================================
 if "Executive" in page:
     header()
-    f1,f2,f3=st.columns([1.2,1.4,1])
-    fdir=f1.selectbox("🏢 Directorate",["All Directorates"]+sorted(df["Directorate"].unique()))
-    yr=f2.slider("📅 Joined PDO — year range",1995,2026,(1995,2026))
-    grp=f3.multiselect("🎚️ Job Group",GROUP_ORDER,default=GROUP_ORDER,format_func=lambda g:GLBL[g])
+    # Directorate switch — sits in a green strip just under the header, centered, gold-accented
+    html('<div class="dirstrip"><span class="lab">🏢 Viewing:</span>'
+         '<span class="dirstrip-note">select a directorate to filter the whole dashboard →</span></div>')
+    ds1,ds2,ds3=st.columns([1,2,1])
+    fdir=ds2.selectbox("dir",["All Directorates"]+sorted(df["Directorate"].unique()),
+                       label_visibility="collapsed")
     d=df.copy()
     if fdir!="All Directorates": d=d[d["Directorate"]==fdir]
-    d=d[(d["JoinYear"]>=yr[0])&(d["JoinYear"]<=yr[1])]
-    if grp: d=d[d["Job Group"].astype(str).isin(grp)]
 
     health,gap,_=comp_health(d)
     k=st.columns(6)
@@ -249,13 +290,10 @@ if "Executive" in page:
     lead_ready=lead_pool["Readiness 1-2 yrs %"].mean() if len(lead_pool) else 0
     sad=d["Sadara_n"].dropna()
     g=st.columns(4)
-    titles=["Competency Health","Capability Gap","Leadership Readiness","People-Leadership (Sadara)"]
-    vals=[health,gap,lead_ready,sad.mean() if len(sad) else 0]
-    goods=[True,False,True,True]
-    for i in range(4):
-        with g[i]:
-            st.altair_chart(gauge(vals[i],goods[i]),use_container_width=True)
-            html(f'<div class="gcap">{titles[i]}</div>')
+    statuscard(g[0],"Competency Health",health,True,"Mastery→Knowledge blend")
+    statuscard(g[1],"Capability Gap",gap,False,"share at Knowledge level")
+    statuscard(g[2],"Leadership Readiness",lead_ready,True,"leaders ready for next role")
+    statuscard(g[3],"People-Leadership (Sadara)",sad.mean() if len(sad) else 0,True,"avg team-leadership score")
 
     st.markdown("<br>",unsafe_allow_html=True)
     c1,c2=st.columns([1.4,1])
@@ -272,13 +310,17 @@ if "Executive" in page:
         st.altair_chart((ch+lbl).properties(height=300),use_container_width=True)
     with c2:
         sec("🌍 Nationality & Gender")
-        def donut(series):
-            dd=series.value_counts().reset_index(); dd.columns=["cat","n"]
-            return alt.Chart(dd).mark_arc(innerRadius=45,cornerRadius=3).encode(
-                theta="n:Q",color=alt.Color("cat:N",scale=alt.Scale(range=GREEN_SCHEME),
-                legend=alt.Legend(orient="bottom",title=None)),tooltip=["cat","n"]).properties(height=140)
-        st.altair_chart(donut(d["Nationality"]),use_container_width=True)
-        st.altair_chart(donut(d["Gender"]),use_container_width=True)
+        def ngbars(series,colors):
+            vc=series.value_counts(); tot=vc.sum() or 1
+            for i,(cat,n) in enumerate(vc.items()):
+                pct=n/tot*100; col=colors[i%len(colors)]
+                html(f'<div class="ngrow"><div class="cap">{cat}</div>'
+                     f'<div class="track"><div class="fill" style="background:{col};width:{pct:.0f}%">{pct:.0f}%</div></div>'
+                     f'<div style="width:54px;text-align:right;font-size:.78rem;color:{SLATE}">{n:,}</div></div>')
+        html('<div style="font-size:.8rem;color:#8A97A6;font-weight:700;margin-top:2px">NATIONALITY</div>')
+        ngbars(d["Nationality"],[GREEN,GOLD])
+        html('<div style="font-size:.8rem;color:#8A97A6;font-weight:700;margin-top:10px">GENDER</div>')
+        ngbars(d["Gender"],[GREEN_DARK,LIME])
 
     st.markdown("<br>",unsafe_allow_html=True)
     cm,ct={}, {}
@@ -632,12 +674,19 @@ elif "Dream" in page:
         html(f"""<div class="team-lead"><div class="n">👑 {lead['Name']}</div>
         <div class="r">{lead['Current Job Title']} · {lead['Directorate']}</div>
         <div class="r">IPF {lead['IPF 2026']} · Sadara {lsada} · {lead['PDO Experience (yrs)']}y</div></div>
-        <div class="connector"></div>""")
+        <div class="tconnect-v"></div>""")
         members=team.iloc[1:]
-        per=st.columns(min(4,max(1,len(members))))
+        ncol=min(4,max(1,len(members)))
+        # horizontal connector spanning the member columns + a dot above each member
+        html(f'<div class="tconnect-h" style="width:{max(20,(ncol-1)/ncol*100):.0f}%"></div>')
+        dotcols=st.columns(ncol)
+        for i in range(len(members)):
+            dotcols[i%ncol].markdown(H('<div class="tdot"></div><div class="tconnect-v" style="height:14px"></div>'),
+                                     unsafe_allow_html=True)
+        per=st.columns(ncol)
         for i,(_,m) in enumerate(members.iterrows()):
             sada=f"{m['Sadara_n']:.0f}" if pd.notna(m['Sadara_n']) else "N/A"
-            per[i%len(per)].markdown(H(f"""<div class="member"><div class="n">{m['Name']}</div>
+            per[i%ncol].markdown(H(f"""<div class="member"><div class="n">{m['Name']}</div>
             <div class="t">{m['Current Job Title']}<br>{m['Directorate']}</div>
             <div class="m">🎖️ IPF {m['IPF 2026']} · 🤝 {sada} · 🧭 {m['PDO Experience (yrs)']}y</div></div>"""),
             unsafe_allow_html=True)
@@ -689,7 +738,100 @@ elif "Dream" in page:
             html(f'<div class="card">{out2}</div>')
 
 # =========================================================
-# PAGE 4 — SOURCE FILE / DATABASE (full 11k visibility)
+# PAGE 4 — INDIVIDUAL PROFILE (full report by Company Number)
+# =========================================================
+elif "Individual" in page:
+    header()
+    html(f'<div style="color:{SLATE};font-size:.95rem;margin:2px 0 8px 2px">👤 <b>Individual talent report.</b> '
+         f'Enter an employee <b>Company Number (MU)</b> to see a full profile — performance, readiness, '
+         f'psychometrics and behaviour — as a visual report, with the raw record at the bottom.</div>')
+    lo,hi=int(df["Company Number"].min()),int(df["Company Number"].max())
+    c1,c2=st.columns([1,2])
+    mu=c1.number_input(f"🔢 Company Number (MU)  ·  {lo}–{hi}",min_value=lo,max_value=hi,value=lo,step=1)
+    match=df[df["Company Number"]==int(mu)]
+    if not len(match):
+        st.warning("No employee with that Company Number."); st.stop()
+    p=match.iloc[0]
+
+    # ---- Header identity band ----
+    sada=f"{p['Sadara_n']:.0f}" if pd.notna(p['Sadara_n']) else "N/A"
+    html(f"""<div class="card" style="border-left:6px solid {GREEN};display:flex;align-items:center;gap:18px">
+    <div style="width:64px;height:64px;border-radius:50%;background:{GREEN};color:#fff;display:flex;
+    align-items:center;justify-content:center;font-size:1.6rem;font-weight:800">
+    {p['First Name'][0]}{p['Last Name'][0]}</div>
+    <div><div style="font-size:1.4rem;font-weight:800;color:{GREEN_DEEP}">{p['First Name']} {p['Last Name']}</div>
+    <div style="color:{SLATE}">{p['Current Job Title']} · {GLBL[str(p['Job Group'])]} · {p['Directorate']}</div>
+    <div style="color:{SLATE};font-size:.82rem">#{p['Company Number']} · {p['Nationality']} · {p['Gender']} · Age {p['Age']} · Joined {p['Date Joined PDO'][:4]}</div>
+    </div></div>""")
+
+    # ---- KPI cards ----
+    k=st.columns(5)
+    kpi(k[0],"IPF 2026",p["IPF 2026"] or "—","performance")
+    kpi(k[1],"Readiness",f"{p['Readiness 1-2 yrs %']:.0f}%" if pd.notna(p['Readiness 1-2 yrs %']) else "—","1–2 yr horizon","alt2")
+    kpi(k[2],"Sadara",sada,"people-leadership","alt")
+    kpi(k[3],"360°",f"{p['S360']:.0f}" if pd.notna(p['S360']) else "—","leadership survey","alt3")
+    kpi(k[4],"PDO Exp",f"{p['PDO Experience (yrs)']} yr","tenure")
+
+    st.markdown("<br>",unsafe_allow_html=True)
+    cc1,cc2=st.columns([1,1])
+    with cc1:
+        sec("📈 3-Year Performance")
+        tr=pd.DataFrame({"Year":["2024","2025","2026"],
+            "Score":[{"EE":3,"AE":2,"MM":1,"":0}.get(p[f"IPF {y}"],0) for y in ["2024","2025","2026"]]})
+        ch=alt.Chart(tr).mark_line(point=alt.OverlayMarkDef(size=110,color=GREEN),color=GREEN,strokeWidth=3).encode(
+            x=alt.X("Year:N",title=None),
+            y=alt.Y("Score:Q",scale=alt.Scale(domain=[0,3]),
+                    axis=alt.Axis(values=[1,2,3],labelExpr="datum.value==3?'EE':datum.value==2?'AE':'MM'",title=None)),
+            tooltip=["Year","Score"]).properties(height=200)
+        st.altair_chart(ch,use_container_width=True)
+        sec("🪜 Readiness Horizons")
+        for h,lab in [("Readiness 1-2 yrs","1–2 yr"),("Readiness 3 yrs","3 yr"),("Readiness 5 yrs","5 yr")]:
+            pctm=re.search(r"(\d+)%",str(p[h])); pct=int(pctm.group(1)) if pctm else 0
+            col=GREEN if pct>=80 else (GOLD if pct>=60 else "#3B82C4")
+            barrow(st,f"{lab}: {str(p[h]).split('—')[0].strip()}",pct,col,f"{pct}%")
+    with cc2:
+        sec("🧠 Behavioural & Psychometric")
+        psy=[("Ambition (HPI)",p["HPI Ambition"]),("Adjustment (HPI)",p["HPI Adjustment"]),
+             ("Dominance (DISC)",p["DISC Dominance"]),("Conscientiousness",p["Big5 Conscientiousness"]),
+             ("Emotional Stability",p["Big5 Emotional Stability"]),("Interpersonal Sens.",p["HPI Interpersonal Sensitivity"]),
+             ("Learning Approach",p["HPI Learning Approach"]),("Openness",p["Big5 Openness"])]
+        for n,v in psy:
+            col=GREEN if v>=60 else (GOLD if v>=45 else RED)
+            barrow(st,n,v,col,f"{v:.0f}")
+
+    # ---- Competencies + career + education ----
+    st.markdown("<br>",unsafe_allow_html=True)
+    sec("🎓 Competencies, Career & Development")
+    e1,e2=st.columns([1,1])
+    with e1:
+        html('<div style="font-weight:700;color:'+GREEN_DEEP+';margin-bottom:4px">Competence Based Assessment</div>')
+        for part in str(p["Competence Based Assessment"]).split(";"):
+            if ":" in part:
+                nm,lv=part.rsplit(":",1); nm,lv=nm.strip(),lv.strip()
+                col={"Mastery":GREEN,"Skill":GOLD,"Knowledge":"#3B82C4"}.get(lv,SLATE)
+                html(f'<div class="rowitem" style="border-left-color:{col};padding:8px 12px">'
+                     f'<b>{nm}</b><span class="pill" style="float:right;background:{col};color:#fff">{lv}</span></div>')
+    with e2:
+        html('<div style="font-weight:700;color:'+GREEN_DEEP+';margin-bottom:4px">Career History</div>')
+        html(f'<div class="card" style="padding:10px 14px">{p["Career History"]}</div>')
+        html('<div style="font-weight:700;color:'+GREEN_DEEP+';margin:8px 0 4px">Education & Certifications</div>')
+        html(f'<div class="card" style="padding:10px 14px">🎓 {p["Degree"]} · {p["College"]}<br>'
+             f'📜 {p["Certificates"]}</div>')
+        html('<div style="font-weight:700;color:'+GREEN_DEEP+';margin:8px 0 4px">Trainings</div>')
+        html(f'<div class="card" style="padding:10px 14px">{p["Trainings Completed"]}</div>')
+
+    # ---- Raw record at the bottom (like source file inspector) ----
+    st.markdown("<br>",unsafe_allow_html=True)
+    sec("📄 Full Record — all fields")
+    hide=["JoinYear","Readiness 1-2 yrs %","Readiness 3 yrs %","Readiness 5 yrs %",
+          "Sadara_n","S360","EQ","perf","Name"]
+    show=[c for c in df.columns if c not in hide]
+    rec=p[show].to_dict()
+    st.dataframe(pd.DataFrame({"Field":list(rec.keys()),"Value":[str(v) for v in rec.values()]}),
+                 hide_index=True,use_container_width=True,height=430)
+
+# =========================================================
+# PAGE 5 — SOURCE FILE / DATABASE (full 11k visibility)
 # =========================================================
 elif "Source File" in page:
     header()
