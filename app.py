@@ -371,7 +371,7 @@ elif "Talent" in page:
               "person people talent talents candidate candidates find need needs looking role roles "
               "position positions director manager head lead leader senior officer graduate executive "
               "leadership capable fit good great top someone our new next in on at as be is are i want "
-              "please show me who能 someone experienced experience skills skill able ready readiness").split())
+              "please show me who someone experienced experience skills skill able ready readiness").split())
     def keywords(text):
         return [t for t in re.findall(r"[a-z]+",text.lower()) if t not in STOP and len(t)>2]
 
@@ -386,39 +386,70 @@ elif "Talent" in page:
         if rule: d=d[d["Job Group"].astype(str).isin(rule)]
         d=d.copy()
 
-        # ---- CONTENT RELEVANCE: actually search what the user typed ----
-        d["stext"]=(d["Directorate"]+" "+d["Parent Function"]+" "+d["Current Job Title"]+" "+
-                    d["Competence Based Assessment"]+" "+d["Trainings Completed"]+" "+
-                    d["Degree"]+" "+d["Certificates"]).str.lower()
+        # did the user explicitly name a directorate? (e.g. "...in HR")
+        named_dir=None
+        DIR_ALIASES={"Information & Digital (IDD)":["idd","it","digital","information"],
+                     "People & Culture (HR)":["hr","people","culture","human"],
+                     "Supply Chain (CP)":["supply","procurement","logistics","cp"],
+                     "Finance":["finance","financial"],"HSE":["hse","safety","health"],
+                     "Engineering & Projects":["engineering","projects"],"Operations":["operations","production"],
+                     "Exploration":["exploration","subsurface","geoscience"],
+                     "Legal & Corporate":["legal","corporate","compliance"]}
+        for dn,al in DIR_ALIASES.items():
+            if any(a in ql for a in al): named_dir=dn; break
+
+        # ---- CONTENT RELEVANCE (whole org). Use PRESENCE per field so one
+        # repeated word (e.g. a function name) can't dominate. ----
         kws=keywords(q)
+        fields=["Directorate","Parent Function","Current Job Title","Competence Based Assessment",
+                "Trainings Completed","Degree","Certificates"]
         if kws:
-            d["relevance"]=d["stext"].apply(lambda t:sum(t.count(k) for k in kws))
+            def relev(r):
+                score=0
+                for f in fields:
+                    txt=str(r[f]).lower()
+                    for k in kws:
+                        if k in txt: score+=1   # presence, capped per field -> no inflation
+                return score
+            d["relevance"]=d.apply(relev,axis=1)
         else:
             d["relevance"]=0
 
         d["Ready%"]=d["Readiness 1-2 yrs %"].fillna(0)
         quality=(d["perf"]*10+d["Ready%"]*.5+d["Sadara_n"].fillna(60)*.2+
                  d["S360"].fillna(65)*.15+d["EQ"].fillna(55)*.1)
-        # relevance dominates so different searches -> different people; quality breaks ties
-        d["fitraw"]=d["relevance"]*30 + quality
+        d["fitraw"]=d["relevance"]*18 + quality
+        if named_dir is not None:
+            d.loc[d["Directorate"]==named_dir,"fitraw"]+=25   # honour a named directorate, don't restrict to it
 
-        # if the query had a clear subject but NOBODY matched, tell the user (don't fake it)
         matched=int((d["relevance"]>0).sum()) if kws else len(d)
 
-        d=d.sort_values(["relevance","fitraw"],ascending=False).head(topn).reset_index(drop=True)
-        # Match% blends relevance fit + quality, scaled 72-99
+        # ---- DIVERSITY: build a MIXED shortlist across the org (cap per directorate) ----
+        ranked=d.sort_values("fitraw",ascending=False)
+        cap=max(2, int(np.ceil(topn/3)))       # no directorate takes more than ~1/3
+        picked=[]; per={}
+        for _,r in ranked.iterrows():
+            dn=r["Directorate"]
+            if per.get(dn,0)<cap:
+                picked.append(r); per[dn]=per.get(dn,0)+1
+            if len(picked)>=topn: break
+        if len(picked)<topn:  # top up if caps left us short
+            for _,r in ranked.iterrows():
+                if not any(r["Company Number"]==p["Company Number"] for p in picked):
+                    picked.append(r)
+                if len(picked)>=topn: break
+        d=pd.DataFrame(picked).reset_index(drop=True)
+
         lo,hi=d["fitraw"].min(),d["fitraw"].max()
         d["Match"]=((d["fitraw"]-lo)/(hi-lo+1e-9)*26+72).round(0)
         d.loc[0,"Match"]=max(d.loc[0,"Match"],95)
 
         if rule:
             st.info(f"🔎 **{tname}** roles are filled from **{', '.join(GLBL[g] for g in rule)}** — "
-                    f"searching those groups across the whole organisation for *{', '.join(kws) or 'best fit'}*.")
-        if kws and matched==0:
-            st.warning(f"No profiles closely match “{' '.join(kws)}”. Showing the strongest available in the "
-                       f"eligible group(s) instead — try different keywords or a directorate filter.")
-        else:
-            st.success(f"Scanned the workforce · **{matched}** relevant profiles found · showing top **{len(d)}** for *{q}*.")
+                    f"searched **across the whole organisation** for *{', '.join(kws) or 'best fit'}*"
+                    + (f", with a boost for **{named_dir}**" if named_dir else "")+".")
+        st.success(f"Scanned the whole org · **{matched}** relevant profiles · showing a **mixed** top "
+                   f"**{len(d)}** from **{d['Directorate'].nunique()} directorates**.")
 
         # ---- 1) Candidate list with match % ----
         sec("📋 Potential Candidates (ranked by match)")
