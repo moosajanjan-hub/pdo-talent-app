@@ -202,7 +202,10 @@ st.sidebar.markdown(H(f"""<div class="sb-brand">{LOGO}
 page=st.sidebar.radio("nav",["📊  Executive Summary","🎯  Talent Profile",
                              "🤝  Dream Team","🎓  Training & Upskilling"],label_visibility="collapsed")
 st.sidebar.markdown("<br>",unsafe_allow_html=True)
-st.sidebar.success("🟢 AI Advisor connected") if client else st.sidebar.warning("⚠️ AI offline — add ANTHROPIC_API_KEY")
+if client:
+    st.sidebar.success("🟢 AI Advisor connected")
+else:
+    st.sidebar.warning("⚠️ AI offline — add ANTHROPIC_API_KEY")
 
 # =========================================================
 # PAGE 1 — EXECUTIVE SUMMARY
